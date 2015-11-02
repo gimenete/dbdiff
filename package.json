@@ -1,0 +1,34 @@
+{
+  "name": "dbdiff",
+  "version": "0.1.0",
+  "description": "Compares two postgresql databases and prints SQL commands to modify the first one in order to match the second one",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "keywords": [
+    "pg",
+    "postgresql",
+    "diff",
+    "database"
+  ],
+  "author": "Alberto Gimeno",
+  "license": "MIT",
+  "dependencies": {
+    "multiline": "^1.0.2",
+    "pg": "^4.4.3",
+    "txain": "^0.4.1",
+    "underscore": "^1.8.3",
+    "yargs": "^3.29.0"
+  },
+  "devDependencies": {
+    "mocha": "^2.3.3"
+  },
+  "bin": {
+    "dbdiff": "./index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gimenete/dbdiff.git"
+  }
+}
