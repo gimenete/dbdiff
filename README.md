@@ -1,5 +1,8 @@
 # dbdiff
-Compares two postgresql databases and prints SQL commands to modify the first one in order to match the second one
+
+Compares two postgresql databases and prints SQL commands to modify the first one in order to match the second one.
+
+**It does NOT execute the statements**. It only prints the statements to the standard output.
 
 # Installing
 
