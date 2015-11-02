@@ -274,7 +274,7 @@ function compareSequences(db1, db2) {
     var desc2 = sequenceDescription(sequence2)
 
     if (desc2 !== desc1) {
-      console.log('DROP SEQUENCE "%s";', sequenceName)
+      console.log('DROP SEQUENCE %s;', sequenceName)
       console.log(desc2)
       console.log()
     }
