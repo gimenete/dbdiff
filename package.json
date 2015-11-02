@@ -1,6 +1,6 @@
 {
   "name": "dbdiff",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Compares two postgresql databases and prints SQL commands to modify the first one in order to match the second one",
   "main": "index.js",
   "scripts": {

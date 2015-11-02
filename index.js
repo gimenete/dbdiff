@@ -6,7 +6,9 @@ var _ = require('underscore')
 var pg = require('pg')
 var util = require('util')
 
-function describeDatabase(conString, callback) {
+var dbdiff = module.exports = {}
+
+dbdiff.describeDatabase = function(conString, callback) {
   var client = new pg.Client(conString)
   var schema = {
     tables: {},
@@ -281,7 +283,7 @@ function compareSequences(db1, db2) {
   })
 }
 
-function compareSchemas(db1, db2) {
+dbdiff.compareSchemas = function(db1, db2) {
   compareSequences(db1, db2)
 
   var tableNames1 = _.keys(db1.tables).sort()
@@ -319,14 +321,14 @@ function compareSchemas(db1, db2) {
   })
 }
 
-function compareDatabases(conn1, conn2) {
+dbdiff.compareDatabases = function(conn1, conn2) {
   var db1, db2
   txain(function(callback) {
-    describeDatabase(conn1, callback)
+    dbdiff.describeDatabase(conn1, callback)
   })
   .then(function(db, callback) {
     db1 = db
-    describeDatabase(conn2, callback)
+    dbdiff.describeDatabase(conn2, callback)
   })
   .then(function(db, callback) {
     db2 = db
@@ -338,7 +340,7 @@ function compareDatabases(conn1, conn2) {
       process.exit(1)
       return
     }
-    compareSchemas(db1, db2)
+    dbdiff.compareSchemas(db1, db2)
   })  
 }
 
@@ -356,5 +358,5 @@ if (module.id === require.main.id) {
 
   var conn1 = argv._[0]
   var conn2 = argv._[1]
-  compareDatabases(conn1, conn2)
+  dbdiff.compareDatabases(conn1, conn2)
 }

@@ -12,8 +12,8 @@ npm install dbdiff -g
 # Usage
 
 ```
-dbdiff
-  postgres://user:pass@host[:port]/dbname1
+dbdiff \
+  postgres://user:pass@host[:port]/dbname1 \
   postgres://user:pass@host[:port]/dbname2
 ```
 
