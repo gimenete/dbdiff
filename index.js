@@ -184,7 +184,7 @@ function compareTables(tableName, db1, db2) {
 
 function indexNames(tableName, indexes) {
   return _.filter(indexes, function(index) {
-    return index.indrelid === tableName
+    return util.format('"%s".%s', index.nspname, index.indrelid) === tableName
   }).map(function(index) {
     return index.indname
   }).sort()
