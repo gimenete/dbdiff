@@ -8,6 +8,11 @@ var util = require('util')
 
 var dbdiff = module.exports = {}
 
+dbdiff.log = function() {
+  var msg = util.format.apply(null, Array.prototype.slice.call(arguments))
+  dbdiff.logger(msg)
+}
+
 dbdiff.describeDatabase = function(conString, callback) {
   var client = new pg.Client(conString)
   var schema = {
@@ -24,7 +29,7 @@ dbdiff.describeDatabase = function(conString, callback) {
     callback(null, result.rows)
   })
   .map(function(table, callback) {
-    var query = multiline(function() {/*
+    var query = multiline(function() {;/*
       SELECT
         table_name,
         table_schema,
@@ -57,7 +62,7 @@ dbdiff.describeDatabase = function(conString, callback) {
       })
     })
 
-    var query = multiline(function() {/*
+    var query = multiline(function() {;/*
       SELECT
         i.relname as indname,
         i.relowner as indowner,
@@ -146,17 +151,17 @@ function compareTables(tableName, db1, db2) {
 
   var diff1 = _.difference(columNames1, columNames2)
   var diff2 = _.difference(columNames2, columNames1)
-  
+
   diff1.forEach(function(columnName) {
-    console.log('ALTER TABLE %s DROP COLUMN "%s";', tableName, columnName)
-    console.log()
+    dbdiff.log('ALTER TABLE %s DROP COLUMN "%s";', tableName, columnName)
+    dbdiff.log()
   })
 
   diff2.forEach(function(columnName) {
     var col = _.findWhere(table2, { column_name: columnName })
     var type = dataType(col)
-    console.log('ALTER TABLE %s ADD COLUMN "%s" %s;', tableName, columnName, columnDescription(col))
-    console.log()
+    dbdiff.log('ALTER TABLE %s ADD COLUMN "%s" %s;', tableName, columnName, columnDescription(col))
+    dbdiff.log()
   })
 
   var common = _.intersection(columNames1, columNames2)
@@ -167,24 +172,24 @@ function compareTables(tableName, db1, db2) {
     if (col1.data_type !== col2.data_type
       || col1.udt_name !== col2.udt_name
       || col1.character_maximum_length !== col2.character_maximum_length) {
-      console.log('-- Previous data type was %s', dataType(col1))
-      console.log('ALTER TABLE %s ALTER COLUMN "%s" SET DATA TYPE %s;', tableName, columnName, dataType(col2))
-      console.log()
+      dbdiff.log('-- Previous data type was %s', dataType(col1))
+      dbdiff.log('ALTER TABLE %s ALTER COLUMN "%s" SET DATA TYPE %s;', tableName, columnName, dataType(col2))
+      dbdiff.log()
     }
     if (col1.is_nullable !== col2.is_nullable) {
       if (col2.is_nullable === 'YES') {
-        console.log('ALTER TABLE %s ALTER COLUMN "%s" DROP NOT NULL;', tableName, columnName)
+        dbdiff.log('ALTER TABLE %s ALTER COLUMN "%s" DROP NOT NULL;', tableName, columnName)
       } else {
-        console.log('ALTER TABLE %s ALTER COLUMN "%s" SET NOT NULL;', tableName, columnName)
+        dbdiff.log('ALTER TABLE %s ALTER COLUMN "%s" SET NOT NULL;', tableName, columnName)
       }
-      console.log()
+      dbdiff.log()
     }
   })
 }
 
 function indexNames(tableName, indexes) {
   return _.filter(indexes, function(index) {
-    return index.indrelid === tableName
+    return util.format('"%s"."%s"', index.nspname, index.indrelid) === tableName
   }).map(function(index) {
     return index.indname
   }).sort()
@@ -203,13 +208,13 @@ function compareIndexes(tableName, db1, db2) {
   if (diff1.length > 0) {
     diff1.forEach(function(indexName) {
       var index = _.findWhere(indexes1, { indname: indexName })
-      console.log('DROP INDEX %s."%s";', index.nspname, indexName)
+      dbdiff.log('DROP INDEX "%s"."%s";', index.nspname, indexName)
     })
   }
   if (diff2.length > 0) {
     diff2.forEach(function(indexName) {
       var index = _.findWhere(indexes2, { indname: indexName })
-      console.log('CREATE INDEX "%s" ON %s USING %s (%s);', indexName, index.indrelid, index.indam, index.indkey_names.join(','))
+      dbdiff.log('CREATE INDEX "%s" ON %s USING %s (%s);', indexName, index.indrelid, index.indam, index.indkey_names.join(','))
     })
   }
 
@@ -220,10 +225,10 @@ function compareIndexes(tableName, db1, db2) {
 
     if (_.difference(index1.indkey_names, index2.indkey_names).length > 0) {
       var index = index2
-      console.log('-- Index %s needs to be changed', index.indname)
-      console.log('DROP INDEX %s."%s";', index.nspname, index.indname)
-      console.log('CREATE INDEX "%s" ON %s USING %s (%s);', index.indname, index.indrelid, index.indam, index.indkey_names.join(','))
-      console.log()
+      dbdiff.log('-- Index "%s"."%s" needs to be changed', index.nspname, index.indname)
+      dbdiff.log('DROP INDEX "%s"."%s";', index.nspname, index.indname)
+      dbdiff.log('CREATE INDEX "%s" ON %s USING %s (%s);', index.indname, index.indrelid, index.indam, index.indkey_names.join(','))
+      dbdiff.log()
     }
   })
 }
@@ -255,16 +260,16 @@ function compareSequences(db1, db2) {
 
   var diff1 = _.difference(sequenceNames1, sequenceNames2)
   var diff2 = _.difference(sequenceNames2, sequenceNames1)
-  
+
   diff1.forEach(function(sequenceName) {
-    console.log('DROP SEQUENCE %s;', sequenceName)
-    console.log()
+    dbdiff.log('DROP SEQUENCE %s;', sequenceName)
+    dbdiff.log()
   })
 
   diff2.forEach(function(sequenceName) {
     var sequence = _.findWhere(db2.sequences, { name: sequenceName })
-    console.log(sequenceDescription(sequence))
-    console.log()
+    dbdiff.log(sequenceDescription(sequence))
+    dbdiff.log()
   })
 
   var inter = _.intersection(sequenceNames1, sequenceNames2)
@@ -276,9 +281,9 @@ function compareSequences(db1, db2) {
     var desc2 = sequenceDescription(sequence2)
 
     if (desc2 !== desc1) {
-      console.log('DROP SEQUENCE %s;', sequenceName)
-      console.log(desc2)
-      console.log()
+      dbdiff.log('DROP SEQUENCE %s;', sequenceName)
+      dbdiff.log(desc2)
+      dbdiff.log()
     }
   })
 }
@@ -291,10 +296,10 @@ dbdiff.compareSchemas = function(db1, db2) {
 
   var diff1 = _.difference(tableNames1, tableNames2)
   var diff2 = _.difference(tableNames2, tableNames1)
-  
+
   diff1.forEach(function(tableName) {
-    console.log('DROP TABLE %s;', tableName)
-    console.log()
+    dbdiff.log('DROP TABLE %s;', tableName)
+    dbdiff.log()
   })
 
   diff2.forEach(function(tableName) {
@@ -302,15 +307,15 @@ dbdiff.compareSchemas = function(db1, db2) {
       var type = dataType(col)
       return '\n  "'+col.column_name+'" '+columnDescription(col)
     })
-    console.log('CREATE TABLE %s (%s', tableName, columns.join(','))
-    console.log(');')
-    console.log()
+    dbdiff.log('CREATE TABLE %s (%s', tableName, columns.join(','))
+    dbdiff.log(');')
+    dbdiff.log()
 
     var indexNames2 = indexNames(tableName, db2.indexes)
     indexNames2.forEach(function(indexName) {
-      var index = _.findWhere(indexes2, { indname: indexName })
-      console.log('CREATE INDEX "%s" ON %s USING %s (%s);', index.indname, index.indrelid, index.indam, index.indkey_names.join(','))
-      console.log()
+      var index = _.findWhere(db2.indexes, { indname: indexName })
+      dbdiff.log('CREATE INDEX "%s" ON %s USING %s (%s);', index.indname, index.indrelid, index.indam, index.indkey_names.join(','))
+      dbdiff.log()
     })
   })
 
@@ -321,7 +326,7 @@ dbdiff.compareSchemas = function(db1, db2) {
   })
 }
 
-dbdiff.compareDatabases = function(conn1, conn2) {
+dbdiff.compareDatabases = function(conn1, conn2, callback) {
   var db1, db2
   txain(function(callback) {
     dbdiff.describeDatabase(conn1, callback)
@@ -332,16 +337,10 @@ dbdiff.compareDatabases = function(conn1, conn2) {
   })
   .then(function(db, callback) {
     db2 = db
+    dbdiff.compareSchemas(db1, db2)
     callback()
   })
-  .end(function(err) {
-    if (err) {
-      console.error(String(err))
-      process.exit(1)
-      return
-    }
-    dbdiff.compareSchemas(db1, db2)
-  })  
+  .end(callback)
 }
 
 if (module.id === require.main.id) {
@@ -358,5 +357,13 @@ if (module.id === require.main.id) {
 
   var conn1 = argv._[0]
   var conn2 = argv._[1]
-  dbdiff.compareDatabases(conn1, conn2)
+  dbdiff.logger = function(msg) {
+    console.log(msg)
+  }
+  dbdiff.compareDatabases(conn1, conn2, function(err) {
+    if (err) {
+      console.error(String(err))
+      process.exit(1)
+    }
+  })
 }

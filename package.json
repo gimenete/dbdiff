@@ -1,10 +1,10 @@
 {
   "name": "dbdiff",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Compares two postgresql databases and prints SQL commands to modify the first one in order to match the second one",
   "main": "index.js",
   "scripts": {
-    "test": "mocha"
+    "test": "nyc --reporter=lcov ./node_modules/.bin/_mocha"
   },
   "keywords": [
     "pg",
@@ -22,7 +22,8 @@
     "yargs": "^3.29.0"
   },
   "devDependencies": {
-    "mocha": "^2.3.3"
+    "mocha": "^2.3.3",
+    "nyc": "^3.2.2"
   },
   "bin": {
     "dbdiff": "./index.js"
