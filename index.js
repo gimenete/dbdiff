@@ -97,7 +97,55 @@ dbdiff.describeDatabase = function(conString, callback) {
     schema.sequences.forEach(function(sequence) {
       sequence.name = util.format('"%s"."%s"', sequence.sequence_schema, sequence.sequence_name)
     })
-    client.query('SELECT current_schema()', callback)
+
+    var query = multiline(function() {;/*
+    	SELECT
+    		n.nspname AS schema,
+        pg_catalog.format_type ( t.oid, NULL ) AS name,
+        t.typname AS internal_name,
+        CASE
+          WHEN t.typrelid != 0
+          THEN CAST ( 'tuple' AS pg_catalog.text )
+          WHEN t.typlen < 0
+          THEN CAST ( 'var' AS pg_catalog.text )
+          ELSE CAST ( t.typlen AS pg_catalog.text )
+        END AS size,
+        pg_catalog.array_to_string (
+          ARRAY( SELECT e.enumlabel
+            FROM pg_catalog.pg_enum e
+            WHERE e.enumtypid = t.oid
+            ORDER BY e.oid ), E'|'
+          ) AS elements,
+        pg_catalog.obj_description ( t.oid, 'pg_type' ) AS description
+	    FROM pg_catalog.pg_type t
+	    LEFT JOIN pg_catalog.pg_namespace n
+        ON n.oid = t.typnamespace
+	    	WHERE 
+		    	( t.typrelid = 0
+	        	OR ( SELECT c.relkind = 'c'
+	          	FROM pg_catalog.pg_class c
+	          	WHERE c.oid = t.typrelid
+	        	)
+	      	)
+	      	AND NOT EXISTS
+		        ( SELECT 1
+		            FROM pg_catalog.pg_type el
+		            WHERE el.oid = t.typelem
+		              AND el.typarray = t.oid
+		        )
+		      AND n.nspname <> 'pg_catalog'
+		      AND n.nspname <> 'information_schema'
+		      AND pg_catalog.pg_type_is_visible ( t.oid )
+	    ORDER BY 1, 2;
+    */})
+    client.query(query, callback)
+  })
+  .then(function(result, callback) {
+  	schema.enumTypes = result.rows
+  	schema.enumTypes.forEach(function(type) {
+  		type.name = util.format('"%s"."%s"', type.schema, type.internal_name)
+  	})
+  	client.query('SELECT current_schema()', callback)
   })
   .end(function(err, result) {
     client.end()
@@ -116,11 +164,10 @@ function dataType(info) {
     }
     type += '[]'
   } else if (info.data_type === 'USER-DEFINED') {
-    type = info.udt_name // hstore for example
+    type = '"' + info.udt_name + '"' // hstore for example
   } else {
     type = info.data_type
   }
-
   if (info.character_maximum_length) {
     type = type+'('+info.character_maximum_length+')'
   }
@@ -233,6 +280,34 @@ function compareIndexes(tableName, db1, db2) {
   })
 }
 
+function enumDescription(enumType) {
+	return util.format('CREATE TYPE %s AS ENUM( %s );', enumType.name, "'" + enumType.elements.split('|').join("', '") + "'")
+}
+
+function enumNames(db) {
+	return db.enumTypes.map(function(type) {
+		return type.name
+	})
+}
+
+function compareEnumTypes(db1, db2) {
+	var enumNames1 = enumNames(db1)
+	var enumNames2 = enumNames(db2)
+
+	var diff1 = _.difference(enumNames1, enumNames2)
+  
+	diff1.forEach(function(typeName) {
+		dbdiff.log('DROP TYPE %s;', typeName)
+		dbdiff.log()
+	})
+
+	db2.enumTypes.forEach(function(type) {
+	  dbdiff.log('DROP TYPE IF EXISTS %s;', type.name)
+    dbdiff.log(enumDescription(type))
+    dbdiff.log()
+	})
+}
+
 function isNumber(n) {
   return +n == n
 }
@@ -290,6 +365,7 @@ function compareSequences(db1, db2) {
 
 dbdiff.compareSchemas = function(db1, db2) {
   compareSequences(db1, db2)
+  compareEnumTypes(db1, db2)
 
   var tableNames1 = _.keys(db1.tables).sort()
   var tableNames2 = _.keys(db2.tables).sort()
