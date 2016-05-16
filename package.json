@@ -4,7 +4,8 @@
   "description": "Compares two postgresql databases and prints SQL commands to modify the first one in order to match the second one",
   "main": "index.js",
   "scripts": {
-    "test": "nyc --reporter=lcov ./node_modules/.bin/_mocha"
+    "test": "mocha",
+    "coverage": "nyc --reporter=lcov npm test && nyc report"
   },
   "keywords": [
     "pg",
@@ -15,15 +16,15 @@
   "author": "Alberto Gimeno",
   "license": "MIT",
   "dependencies": {
-    "multiline": "^1.0.2",
-    "pg": "^4.4.3",
-    "txain": "^0.4.1",
+    "pg": "^4.5.5",
+    "pync": "^1.0.1",
     "underscore": "^1.8.3",
     "yargs": "^3.29.0"
   },
   "devDependencies": {
-    "mocha": "^2.3.3",
-    "nyc": "^3.2.2"
+    "mocha": "^2.4.5",
+    "nyc": "^3.2.2",
+    "standard": "^7.0.1"
   },
   "bin": {
     "dbdiff": "./index.js"
