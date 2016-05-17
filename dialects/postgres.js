@@ -4,6 +4,13 @@ var pync = require('pync')
 var PostgresClient = require('./postgres-client')
 
 class PostgresDialect {
+  _unescape (str) {
+    if (str.substring(0, 1) === '"' && str.substring(str.length - 1) === '"') {
+      return str.substring(1, str.length - 1)
+    }
+    return str
+  }
+
   describeDatabase (options) {
     var conString
     if (typeof options === 'string') {
@@ -113,7 +120,8 @@ class PostgresDialect {
           p: 'primary'
         }
         constraints.forEach((constraint) => {
-          var table = schema.tables.find((table) => table.name === constraint.table_from && table.schema === constraint.nspname)
+          var tableFrom = this._unescape(constraint.table_from)
+          var table = schema.tables.find((table) => table.name === tableFrom && table.schema === constraint.nspname)
           var { description } = constraint
           var i = description.indexOf('(')
           var n = description.indexOf(')')
