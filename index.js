@@ -14,14 +14,17 @@ dbdiff.log = function () {
 
 dbdiff.describeDatabase = (conString) => {
   var client = new Client(conString)
-  var schema = {
-    tables: {}
-  }
+  var schema = {}
 
   return client.find('SELECT * FROM pg_tables WHERE schemaname NOT IN ($1, $2, $3)', ['temp', 'pg_catalog', 'information_schema'])
     .then((tables) => (
-      pync.map(tables, (table) => (
-        client.find(`
+      pync.map(tables, (table) => {
+        var t = {
+          name: table.tablename,
+          schema: table.schemaname,
+          indexes: []
+        }
+        return client.find(`
           SELECT
             table_name,
             table_schema,
@@ -34,25 +37,20 @@ dbdiff.describeDatabase = (conString) => {
           FROM
             INFORMATION_SCHEMA.COLUMNS
           WHERE
-            table_name=$1 AND table_schema=$2;
-        `, [table.tablename, table.schemaname])
-      ))
-    ))
-    .then((descriptions) => {
-      var tables = schema.tables = {}
-      descriptions.forEach((rows) => {
-        rows.forEach((row) => {
-          var tableName = util.format('"%s"."%s"', row.table_schema, row.table_name)
-          var table = tables[tableName]
-          if (!table) {
-            tables[tableName] = []
-            table = tables[tableName]
-          }
-          delete row.table_schema
-          delete row.table_name
-          table.push(row)
+            table_name=$1 AND table_schema=$2;`, [table.tablename, table.schemaname])
+        .then((columns) => {
+          t.columns = columns.map((column) => ({
+            name: column.column_name,
+            nullable: column.is_nullable === 'YES',
+            defaultValue: column.column_default,
+            type: dataType(column)
+          }))
+          return t
         })
       })
+    ))
+    .then((tables) => {
+      schema.tables = tables
       return client.find(`
         SELECT
           i.relname as indname,
@@ -82,19 +80,31 @@ dbdiff.describeDatabase = (conString) => {
       `)
     })
     .then((indexes) => {
-      schema.indexes = indexes
+      indexes.forEach((index) => {
+        var table = schema.tables.find((table) => table.name === index.indrelid && table.schema === index.nspname)
+        table.indexes.push({
+          name: index.indname,
+          schema: table.schema,
+          primary: index.indisprimary,
+          unique: index.indisunique,
+          type: index.indam,
+          keys: index.indkey_names
+        })
+      })
       return client.find('SELECT * FROM information_schema.sequences')
     })
     .then((sequences) => {
-      schema.sequences = sequences
-      schema.sequences.forEach((sequence) => {
-        sequence.name = util.format('"%s"."%s"', sequence.sequence_schema, sequence.sequence_name)
+      schema.sequences = sequences.map((sequence) => {
+        sequence.schema = sequence.sequence_schema
+        sequence.name = sequence.sequence_name
+        sequence.cycle = sequence.cycle_option === 'YES'
+        delete sequence.sequence_name
+        delete sequence.sequence_catalog
+        delete sequence.sequence_schema
+        delete sequence.cycle_option
+        return sequence
       })
-      return client.findOne('SELECT current_schema()')
-    })
-    .then((result) => {
       client.end()
-      schema.public_schema = result.current_schema
       return schema
     })
     .catch((err) => {
@@ -123,22 +133,21 @@ function dataType (info) {
   return type
 }
 
-function columnNames (columns) {
-  return columns.map((col) => col.column_name).sort()
+function columnNames (table) {
+  return table.columns.map((col) => col.name).sort()
 }
 
 function columnDescription (col) {
-  var desc = dataType(col)
-  if (col.column_default) {
-    desc += ' DEFAULT ' + col.column_default
+  var desc = col.type
+  if (col.defaultValue) {
+    desc += ' DEFAULT ' + col.defaultValue
   }
-  desc += col.is_nullable === 'NO' ? ' NOT NULL' : ' NULL'
+  desc += col.nullable ? ' NULL' : ' NOT NULL'
   return desc
 }
 
-function compareTables (tableName, db1, db2) {
-  var table1 = db1.tables[tableName]
-  var table2 = db2.tables[tableName]
+function compareTables (table1, table2) {
+  var tableName = fullName(table1)
 
   var columNames1 = columnNames(table1)
   var columNames2 = columnNames(table2)
@@ -147,30 +156,28 @@ function compareTables (tableName, db1, db2) {
   var diff2 = _.difference(columNames2, columNames1)
 
   diff1.forEach((columnName) => {
-    dbdiff.log('ALTER TABLE %s DROP COLUMN "%s";', tableName, columnName)
+    dbdiff.log(`ALTER TABLE ${tableName} DROP COLUMN "${columnName}";`)
     dbdiff.log()
   })
 
   diff2.forEach((columnName) => {
-    var col = _.findWhere(table2, { column_name: columnName })
+    var col = table2.columns.find((column) => column.name === columnName)
     dbdiff.log('ALTER TABLE %s ADD COLUMN "%s" %s;', tableName, columnName, columnDescription(col))
     dbdiff.log()
   })
 
   var common = _.intersection(columNames1, columNames2)
   common.forEach((columnName) => {
-    var col1 = _.findWhere(table1, { column_name: columnName })
-    var col2 = _.findWhere(table2, { column_name: columnName })
+    var col1 = table1.columns.find((column) => column.name === columnName)
+    var col2 = table2.columns.find((column) => column.name === columnName)
 
-    if (col1.data_type !== col2.data_type ||
-      col1.udt_name !== col2.udt_name ||
-      col1.character_maximum_length !== col2.character_maximum_length) {
-      dbdiff.log('-- Previous data type was %s', dataType(col1))
-      dbdiff.log('ALTER TABLE %s ALTER COLUMN "%s" SET DATA TYPE %s;', tableName, columnName, dataType(col2))
+    if (col1.type !== col2.type) {
+      dbdiff.log('-- Previous data type was %s', col1.type)
+      dbdiff.log('ALTER TABLE %s ALTER COLUMN "%s" SET DATA TYPE %s;', tableName, columnName, col2.type)
       dbdiff.log()
     }
-    if (col1.is_nullable !== col2.is_nullable) {
-      if (col2.is_nullable === 'YES') {
+    if (col1.nullable !== col2.nullable) {
+      if (col2.nullable) {
         dbdiff.log('ALTER TABLE %s ALTER COLUMN "%s" DROP NOT NULL;', tableName, columnName)
       } else {
         dbdiff.log('ALTER TABLE %s ALTER COLUMN "%s" SET NOT NULL;', tableName, columnName)
@@ -180,61 +187,57 @@ function compareTables (tableName, db1, db2) {
   })
 }
 
-function indexNames (tableName, indexes) {
-  return _.filter(indexes, (index) => {
-    return util.format('"%s"."%s"', index.nspname, index.indrelid) === tableName
-  }).map((index) => index.indname).sort()
+function indexNames (table) {
+  return table.indexes.map((index) => index.name).sort()
 }
 
 function dropIndex (index) {
-  dbdiff.log('DROP INDEX "%s"."%s";', index.nspname, index.indname)
+  dbdiff.log('DROP INDEX "%s"."%s";', index.schema, index.name)
 }
 
-function createIndex (index) {
-  if (index.indisprimary) {
-    dbdiff.log('ALTER TABLE "%s" ADD CONSTRAINT "%s" PRIMARY KEY (%s);', index.indrelid, index.indname, index.indkey_names.join(','))
-  } else if (index.indisunique) {
-    dbdiff.log('ALTER TABLE "%s" ADD CONSTRAINT "%s" UNIQUE (%s);', index.indrelid, index.indname, index.indkey_names.join(','))
+function createIndex (table, index) {
+  var tableName = fullName(table)
+  if (index.primary) {
+    dbdiff.log('ALTER TABLE %s ADD CONSTRAINT "%s" PRIMARY KEY (%s);', tableName, index.name, index.keys.join(','))
+  } else if (index.unique) {
+    dbdiff.log('ALTER TABLE %s ADD CONSTRAINT "%s" UNIQUE (%s);', tableName, index.name, index.keys.join(','))
   } else {
-    dbdiff.log('CREATE INDEX "%s" ON "%s" USING %s (%s);', index.indname, index.indrelid, index.indam, index.indkey_names.join(','))
+    dbdiff.log('CREATE INDEX "%s" ON %s USING %s (%s);', index.name, tableName, index.type, index.keys.join(','))
   }
 }
 
-function compareIndexes (tableName, db1, db2) {
-  var indexes1 = db1.indexes
-  var indexes2 = db2.indexes
-
-  var indexNames1 = indexNames(tableName, indexes1)
-  var indexNames2 = indexNames(tableName, indexes2)
+function compareIndexes (table1, table2) {
+  var indexNames1 = indexNames(table1)
+  var indexNames2 = indexNames(table2)
 
   var diff1 = _.difference(indexNames1, indexNames2)
   var diff2 = _.difference(indexNames2, indexNames1)
 
   if (diff1.length > 0) {
     diff1.forEach((indexName) => {
-      var index = _.findWhere(indexes1, { indname: indexName })
+      var index = table1.indexes.find((index) => index.name === indexName)
       dropIndex(index)
     })
   }
   if (diff2.length > 0) {
     diff2.forEach((indexName) => {
-      var index = _.findWhere(indexes2, { indname: indexName })
-      createIndex(index)
+      var index = table2.indexes.find((index) => index.name === indexName)
+      createIndex(table2, index)
     })
   }
 
   var inter = _.intersection(indexNames1, indexNames2)
   inter.forEach((indexName) => {
-    var index1 = _.findWhere(indexes1, { indname: indexName })
-    var index2 = _.findWhere(indexes2, { indname: indexName })
+    var index1 = table1.indexes.find((index) => index.name === indexName)
+    var index2 = table2.indexes.find((index) => index.name === indexName)
 
-    if (_.difference(index1.indkey_names, index2.indkey_names).length > 0 ||
-      index1.indisprimary !== index2.indisprimary ||
-      index1.indisunique !== index2.indisunique) {
+    if (_.difference(index1.keys, index2.keys).length > 0 ||
+      index1.primary !== index2.primary ||
+      index1.unique !== index2.unique) {
       var index = index2
-      dbdiff.log('-- Index "%s"."%s" needs to be changed', index.nspname, index.indname)
+      dbdiff.log('-- Index "%s"."%s" needs to be changed', index.schema, index.name)
       dropIndex(index)
-      createIndex(index)
+      createIndex(table1, index)
       dbdiff.log()
     }
   })
@@ -246,17 +249,17 @@ function isNumber (n) {
 
 function sequenceDescription (sequence) {
   return util.format('CREATE SEQUENCE %s INCREMENT %s %s %s %s %s CYCLE;',
-      sequence.name,
+      fullName(sequence),
       sequence.increment,
       isNumber(sequence.minimum_value) ? 'MINVALUE ' + sequence.minimum_value : 'NO MINVALUE',
       isNumber(sequence.maximum_value) ? 'MAXVALUE ' + sequence.maximum_value : 'NO MAXVALUE',
       isNumber(sequence.start_value) ? 'START ' + sequence.start_value : '',
-      sequence.cycle_option === 'NO' ? 'NO' : ''
+      sequence.cycle ? '' : 'NO'
     )
 }
 
 function sequenceNames (db) {
-  return db.sequences.map((sequence) => sequence.name).sort()
+  return db.sequences.map(fullName).sort()
 }
 
 function compareSequences (db1, db2) {
@@ -272,15 +275,15 @@ function compareSequences (db1, db2) {
   })
 
   diff2.forEach((sequenceName) => {
-    var sequence = _.findWhere(db2.sequences, { name: sequenceName })
+    var sequence = db2.sequences.find((sequence) => sequenceName === fullName(sequence))
     dbdiff.log(sequenceDescription(sequence))
     dbdiff.log()
   })
 
   var inter = _.intersection(sequenceNames1, sequenceNames2)
   inter.forEach((sequenceName) => {
-    var sequence1 = _.findWhere(db1.sequences, { name: sequenceName })
-    var sequence2 = _.findWhere(db2.sequences, { name: sequenceName })
+    var sequence1 = db1.sequences.find((sequence) => sequenceName === fullName(sequence))
+    var sequence2 = db2.sequences.find((sequence) => sequenceName === fullName(sequence))
 
     var desc1 = sequenceDescription(sequence1)
     var desc2 = sequenceDescription(sequence2)
@@ -293,40 +296,45 @@ function compareSequences (db1, db2) {
   })
 }
 
+function fullName (obj) {
+  return `"${obj.schema}"."${obj.name}"`
+}
+
+function findTable (db, table) {
+  return db.tables.find((t) => t.name === table.name && t.schema === table.schema)
+}
+
 dbdiff.compareSchemas = function (db1, db2) {
   compareSequences(db1, db2)
 
-  var tableNames1 = _.keys(db1.tables).sort()
-  var tableNames2 = _.keys(db2.tables).sort()
-
-  var diff1 = _.difference(tableNames1, tableNames2)
-  var diff2 = _.difference(tableNames2, tableNames1)
-
-  diff1.forEach((tableName) => {
-    dbdiff.log('DROP TABLE %s;', tableName)
-    dbdiff.log()
-  })
-
-  diff2.forEach((tableName) => {
-    var columns = db2.tables[tableName].map((col) => {
-      return '\n  "' + col.column_name + '" ' + columnDescription(col)
-    })
-    dbdiff.log('CREATE TABLE %s (%s', tableName, columns.join(','))
-    dbdiff.log(');')
-    dbdiff.log()
-
-    var indexNames2 = indexNames(tableName, db2.indexes)
-    indexNames2.forEach((indexName) => {
-      var index = _.findWhere(db2.indexes, { indname: indexName })
-      dbdiff.log('CREATE INDEX "%s" ON %s USING %s (%s);', index.indname, index.indrelid, index.indam, index.indkey_names.join(','))
+  db1.tables.forEach((table) => {
+    var t = findTable(db2, table)
+    if (!t) {
+      dbdiff.log(`DROP TABLE ${fullName(table)};`)
       dbdiff.log()
-    })
+    }
   })
 
-  var inter = _.intersection(tableNames1, tableNames2)
-  inter.forEach((tableName) => {
-    compareTables(tableName, db1, db2)
-    compareIndexes(tableName, db1, db2)
+  db2.tables.forEach((table) => {
+    var t = findTable(db1, table)
+    var tableName = fullName(table)
+    if (!t) {
+      var columns = table.columns.map((col) => {
+        return `\n  "${col.name}" ${columnDescription(col)}`
+      })
+      dbdiff.log(`CREATE TABLE ${tableName} (${columns.join(',')}\n);`)
+      dbdiff.log()
+
+      var indexNames2 = indexNames(table)
+      indexNames2.forEach((indexName) => {
+        var index = table.indexes.find((index) => index.name === indexName)
+        dbdiff.log(`CREATE INDEX "${index.name}" ON ${tableName} USING ${index.type} (${index.keys.join(', ')});`)
+        dbdiff.log()
+      })
+    } else {
+      compareTables(t, table)
+      compareIndexes(t, table)
+    }
   })
 }
 

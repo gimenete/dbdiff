@@ -18,8 +18,7 @@ describe('dbdiff.compareDatabases', () => {
     var commands1 = []
     var commands2 = ['CREATE TABLE users (email VARCHAR(255), tags varchar(255)[])']
     var expected = [
-      'CREATE TABLE "public"."users" (\n  "email" character varying(255) NULL,\n  "tags" varchar[] NULL',
-      ');'
+      'CREATE TABLE "public"."users" (\n  "email" character varying(255) NULL,\n  "tags" varchar[] NULL\n);'
     ]
     return utils.runAndCompare(commands1, commands2, expected)
   })
@@ -38,8 +37,7 @@ describe('dbdiff.compareDatabases', () => {
     var commands2 = ['CREATE TABLE users (id serial)']
     var expected = [
       'CREATE SEQUENCE "public"."users_id_seq" INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 NO CYCLE;',
-      'CREATE TABLE "public"."users" (\n  "id" integer DEFAULT nextval(\'users_id_seq\'::regclass) NOT NULL',
-      ');'
+      'CREATE TABLE "public"."users" (\n  "id" integer DEFAULT nextval(\'users_id_seq\'::regclass) NOT NULL\n);'
     ]
     return utils.runAndCompare(commands1, commands2, expected)
   })
@@ -147,7 +145,7 @@ describe('dbdiff.compareDatabases', () => {
       'CREATE INDEX users_email ON "users" (email)'
     ]
     var expected = [
-      'CREATE INDEX "users_email" ON "users" USING btree (email);'
+      'CREATE INDEX "users_email" ON "public"."users" USING btree (email);'
     ]
     return utils.runAndCompare(commands1, commands2, expected)
   })
@@ -184,7 +182,7 @@ describe('dbdiff.compareDatabases', () => {
     var expected = [
       '-- Index "public"."some_index" needs to be changed',
       'DROP INDEX "public"."some_index";',
-      'CREATE INDEX "some_index" ON "users" USING btree (last_name);'
+      'CREATE INDEX "some_index" ON "public"."users" USING btree (last_name);'
     ]
     return utils.runAndCompare(commands1, commands2, expected)
   })
@@ -196,9 +194,8 @@ describe('dbdiff.compareDatabases', () => {
       'CREATE INDEX users_email ON users (email)'
     ]
     var expected = [
-      'CREATE TABLE "public"."users" (\n  "email" character varying(255) NULL',
-      ');',
-      'CREATE INDEX "users_email" ON users USING btree (email);'
+      'CREATE TABLE "public"."users" (\n  "email" character varying(255) NULL\n);',
+      'CREATE INDEX "users_email" ON "public"."users" USING btree (email);'
     ]
     return utils.runAndCompare(commands1, commands2, expected)
   })
