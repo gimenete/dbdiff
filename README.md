@@ -72,3 +72,21 @@ diff.compare(conn1, conn2)
 diff.compareSchemas(schema1, schema2)
 console.log(diff.commands('drop'))
 ```
+
+You can pass connection strings such as `postgres://user:pass@host:5432/dbname1` or objects to these methods. For example:
+
+```javascript
+dbdiff.describeDatabase({
+  dialect: 'postgres',
+  username: 'user',
+  password: 'pass',
+  database: 'dbname1',
+  host: 'localhost',
+  dialectOptions: {
+    ssl: false
+  }
+})
+.then((schema) => {
+  // ...
+})
+```

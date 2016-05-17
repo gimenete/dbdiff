@@ -6,6 +6,17 @@ var pync = require('pync')
 var conString1 = 'postgres://postgres:postgres@localhost/db1'
 var conString2 = 'postgres://postgres:postgres@localhost/db2'
 
+var conSettings2 = {
+  dialect: 'postgres',
+  username: 'postgres',
+  password: 'postgres',
+  database: 'db2',
+  host: 'localhost',
+  dialectOptions: {
+    ssl: false
+  }
+}
+
 var client1 = new Client(conString1)
 var client2 = new Client(conString2)
 
@@ -28,7 +39,7 @@ exports.runAndCompare = (commands1, commands2, expected, levels = ['drop', 'warn
   var dbdiff = new DbDiff()
   return pync.series(levels, (level) => {
     return exports.runCommands(commands1, commands2)
-      .then(() => dbdiff.compare(conString1, conString2))
+      .then(() => dbdiff.compare(conString1, conSettings2))
       .then(() => assert.equal(dbdiff.commands(level), expected))
       .then(() => client1.query(dbdiff.commands(level)))
       .then(() => dbdiff.compare(conString1, conString2))
