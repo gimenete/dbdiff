@@ -145,10 +145,9 @@ class DbDiff {
     table2.constraints.forEach((constraint2) => {
       var constraint1 = table1 && table1.constraints.find((cons) => constraint2.name === cons.name)
       if (constraint1) {
-        if (!_.isEqual(constraint1, constraint2)) {
-          // TODO: drop current constraint
-          // constraint1 = null
-        }
+        if (_.isEqual(constraint1, constraint2)) return
+        this._safe(`ALTER TABLE ${tableName} DROP CONSTRAINT "${constraint2.name}";`)
+        constraint1 = null
       }
       if (!constraint1) {
         var keys = constraint2.keys.map((s) => `"${s}"`).join(', ')

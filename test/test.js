@@ -257,6 +257,34 @@ describe('dbdiff.compareDatabases', () => {
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
+  it('should support existing constriants with the same name', () => {
+    var commands1 = [
+      'CREATE TABLE users (email VARCHAR(255), api_key VARCHAR(255));',
+      'ALTER TABLE users ADD CONSTRAINT a_unique_constraint UNIQUE (email);'
+    ]
+    var commands2 = [
+      'CREATE TABLE users (email VARCHAR(255), api_key VARCHAR(255));',
+      'ALTER TABLE users ADD CONSTRAINT a_unique_constraint UNIQUE (api_key);'
+    ]
+    return Promise.resolve()
+      .then(() => {
+        var expected = dedent`
+          ALTER TABLE "public"."users" DROP CONSTRAINT "a_unique_constraint";
+
+          ALTER TABLE "public"."users" ADD CONSTRAINT "a_unique_constraint" UNIQUE ("api_key");
+        `
+        return utils.runAndCompare(commands1, commands2, expected, ['warn', 'drop'])
+      })
+      .then(() => {
+        var expected = dedent`
+          ALTER TABLE "public"."users" DROP CONSTRAINT "a_unique_constraint";
+
+          -- ALTER TABLE "public"."users" ADD CONSTRAINT "a_unique_constraint" UNIQUE ("api_key");
+        `
+        return utils.runAndCompare(commands1, commands2, expected, ['safe'])
+      })
+  })
+
   it('should run as a cli application', () => {
     var conString1 = 'postgres://postgres:postgres@localhost/db1'
     var conString2 = 'postgres://postgres:postgres@localhost/db2'
