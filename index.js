@@ -2,39 +2,9 @@
 
 var _ = require('underscore')
 var util = require('util')
-var url = require('url')
+var dialects = require('./dialects')
 
-var dialects = {}
 var dbdiff = module.exports = {}
-
-dbdiff.register = (dialect, clazz) => {
-  dialects[dialect] = clazz
-}
-
-dbdiff.describeDatabase = (options) => {
-  return Promise.resolve()
-    .then(() => {
-      var dialect = options.dialect
-      if (!dialect) {
-        if (typeof options === 'string') {
-          var info = url.parse(options)
-          dialect = info.protocol
-          if (dialect && dialect.length > 1) {
-            dialect = info.protocol.substring(0, info.protocol.length - 1)
-          }
-        }
-        if (!dialect) {
-          return Promise.reject(new Error(`Dialect not found for options ${options}`))
-        }
-      }
-      var clazz = dialects[dialect]
-      if (!clazz) {
-        return Promise.reject(new Error(`No implementation found for dialect ${dialect}`))
-      }
-      var obj = new (Function.prototype.bind.apply(clazz, [options]))
-      return obj.describeDatabase(options)
-    })
-}
 
 dbdiff.log = function () {
   var msg = util.format.apply(null, Array.prototype.slice.call(arguments))
@@ -248,8 +218,8 @@ dbdiff.compareSchemas = function (db1, db2) {
 
 dbdiff.compareDatabases = (conn1, conn2, callback) => {
   return Promise.all([
-    dbdiff.describeDatabase(conn1),
-    dbdiff.describeDatabase(conn2)
+    dialects.describeDatabase(conn1),
+    dialects.describeDatabase(conn2)
   ])
   .then((results) => {
     var db1 = results[0]
@@ -257,8 +227,6 @@ dbdiff.compareDatabases = (conn1, conn2, callback) => {
     dbdiff.compareSchemas(db1, db2)
   })
 }
-
-require('./dialects/postgres')
 
 if (module.id === require.main.id) {
   var yargs = require('yargs')

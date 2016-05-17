@@ -1,4 +1,4 @@
-var dbdiff = require('../')
+var dialects = require('./')
 var querystring = require('querystring')
 var pync = require('pync')
 var PostgresClient = require('./postgres-client')
@@ -141,4 +141,4 @@ function dataType (info) {
   return type
 }
 
-dbdiff.register('postgres', PostgresDialect)
+dialects.register('postgres', PostgresDialect)
