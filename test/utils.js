@@ -1,4 +1,4 @@
-var Client = require('../client')
+var Client = require('../dialects/postgres-client')
 var dbdiff = require('../')
 var assert = require('assert')
 var pync = require('pync')

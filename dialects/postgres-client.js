@@ -1,6 +1,6 @@
 var pg = require('pg')
 
-class Client {
+class PostgresClient {
   constructor (conString) {
     this.client = new pg.Client(conString)
   }
@@ -42,4 +42,4 @@ class Client {
   }
 }
 
-module.exports = Client
+module.exports = PostgresClient
