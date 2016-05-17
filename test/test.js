@@ -1,7 +1,8 @@
-/* globals describe beforeEach it */
+/* globals describe it */
 var utils = require('./utils')
 var assert = require('assert')
 var childProcess = require('child_process')
+var dedent = require('dedent')
 
 const exec = (cmd) => {
   return new Promise((resolve, reject) => {
@@ -12,33 +13,42 @@ const exec = (cmd) => {
 }
 
 describe('dbdiff.compareDatabases', () => {
-  beforeEach(() => utils.resetDatabases())
-
   it('should create a table', () => {
     var commands1 = []
     var commands2 = ['CREATE TABLE users (email VARCHAR(255), tags varchar(255)[])']
-    var expected = [
-      'CREATE TABLE "public"."users" (\n  "email" character varying(255) NULL,\n  "tags" varchar[] NULL\n);'
-    ]
+    var expected = dedent`
+      CREATE TABLE "public"."users" (
+        "email" character varying(255) NULL,
+        "tags" varchar[] NULL
+      );
+    `
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
   it('should drop a table', () => {
     var commands1 = ['CREATE TABLE users (email VARCHAR(255))']
     var commands2 = []
-    var expected = [
-      'DROP TABLE "public"."users";'
-    ]
-    return utils.runAndCompare(commands1, commands2, expected)
+    return Promise.resolve()
+      .then(() => {
+        var expected = 'DROP TABLE "public"."users";'
+        return utils.runAndCompare(commands1, commands2, expected, ['drop'])
+      })
+      .then(() => {
+        var expected = '-- DROP TABLE "public"."users";'
+        return utils.runAndCompare(commands1, commands2, expected, ['safe', 'warn'])
+      })
   })
 
   it('should create a table wih an index', () => {
     var commands1 = []
     var commands2 = ['CREATE TABLE users (id serial)']
-    var expected = [
-      'CREATE SEQUENCE "public"."users_id_seq" INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 NO CYCLE;',
-      'CREATE TABLE "public"."users" (\n  "id" integer DEFAULT nextval(\'users_id_seq\'::regclass) NOT NULL\n);'
-    ]
+    var expected = dedent`
+      CREATE SEQUENCE "public"."users_id_seq" INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 NO CYCLE;
+
+      CREATE TABLE "public"."users" (
+        "id" integer DEFAULT nextval('users_id_seq'::regclass) NOT NULL
+      );
+    `
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
@@ -48,9 +58,7 @@ describe('dbdiff.compareDatabases', () => {
       'CREATE TABLE users (email VARCHAR(255))',
       'ALTER TABLE users ADD COLUMN first_name VARCHAR(255)'
     ]
-    var expected = [
-      'ALTER TABLE "public"."users" ADD COLUMN "first_name" character varying(255) NULL;'
-    ]
+    var expected = 'ALTER TABLE "public"."users" ADD COLUMN "first_name" character varying(255) NULL;'
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
@@ -62,10 +70,15 @@ describe('dbdiff.compareDatabases', () => {
     var commands2 = [
       'CREATE TABLE users (email VARCHAR(255))'
     ]
-    var expected = [
-      'ALTER TABLE "public"."users" DROP COLUMN "first_name";'
-    ]
-    return utils.runAndCompare(commands1, commands2, expected)
+    return Promise.resolve()
+      .then(() => {
+        var expected = 'ALTER TABLE "public"."users" DROP COLUMN "first_name";'
+        return utils.runAndCompare(commands1, commands2, expected, ['drop'])
+      })
+      .then(() => {
+        var expected = '-- ALTER TABLE "public"."users" DROP COLUMN "first_name";'
+        return utils.runAndCompare(commands1, commands2, expected, ['safe', 'warn'])
+      })
   })
 
   it('should change the type of a column', () => {
@@ -77,11 +90,21 @@ describe('dbdiff.compareDatabases', () => {
       'CREATE TABLE users (email VARCHAR(255))',
       'ALTER TABLE users ADD COLUMN first_name VARCHAR(255)'
     ]
-    var expected = [
-      '-- Previous data type was character varying(200)',
-      'ALTER TABLE "public"."users" ALTER COLUMN "first_name" SET DATA TYPE character varying(255);'
-    ]
-    return utils.runAndCompare(commands1, commands2, expected)
+    return Promise.resolve()
+      .then(() => {
+        var expected = dedent`
+          -- Previous data type was character varying(200)
+          ALTER TABLE "public"."users" ALTER COLUMN "first_name" SET DATA TYPE character varying(255);
+        `
+        return utils.runAndCompare(commands1, commands2, expected, ['drop', 'warn'])
+      })
+      .then(() => {
+        var expected = dedent`
+          -- Previous data type was character varying(200)
+          -- ALTER TABLE "public"."users" ALTER COLUMN "first_name" SET DATA TYPE character varying(255);
+        `
+        return utils.runAndCompare(commands1, commands2, expected, ['safe'])
+      })
   })
 
   it('should change a column to not nullable', () => {
@@ -93,10 +116,15 @@ describe('dbdiff.compareDatabases', () => {
       'CREATE TABLE users (email VARCHAR(255))',
       'ALTER TABLE users ADD COLUMN first_name VARCHAR(255) NOT NULL'
     ]
-    var expected = [
-      'ALTER TABLE "public"."users" ALTER COLUMN "first_name" SET NOT NULL;'
-    ]
-    return utils.runAndCompare(commands1, commands2, expected)
+    return Promise.resolve()
+      .then(() => {
+        var expected = 'ALTER TABLE "public"."users" ALTER COLUMN "first_name" SET NOT NULL;'
+        return utils.runAndCompare(commands1, commands2, expected, ['drop', 'warn'])
+      })
+      .then(() => {
+        var expected = '-- ALTER TABLE "public"."users" ALTER COLUMN "first_name" SET NOT NULL;'
+        return utils.runAndCompare(commands1, commands2, expected, ['safe'])
+      })
   })
 
   it('should change a column to nullable', () => {
@@ -108,27 +136,21 @@ describe('dbdiff.compareDatabases', () => {
       'CREATE TABLE users (email VARCHAR(255))',
       'ALTER TABLE users ADD COLUMN first_name VARCHAR(255)'
     ]
-    var expected = [
-      'ALTER TABLE "public"."users" ALTER COLUMN "first_name" DROP NOT NULL;'
-    ]
+    var expected = 'ALTER TABLE "public"."users" ALTER COLUMN "first_name" DROP NOT NULL;'
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
   it('should create a sequence', () => {
     var commands1 = []
     var commands2 = ['CREATE SEQUENCE seq_name']
-    var expected = [
-      'CREATE SEQUENCE "public"."seq_name" INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 NO CYCLE;'
-    ]
+    var expected = 'CREATE SEQUENCE "public"."seq_name" INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 NO CYCLE;'
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
   it('should drop a sequence', () => {
     var commands1 = ['CREATE SEQUENCE seq_name']
     var commands2 = []
-    var expected = [
-      'DROP SEQUENCE "public"."seq_name";'
-    ]
+    var expected = 'DROP SEQUENCE "public"."seq_name";'
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
@@ -144,9 +166,7 @@ describe('dbdiff.compareDatabases', () => {
       'ALTER TABLE users ADD COLUMN first_name VARCHAR(255)',
       'CREATE INDEX users_email ON "users" (email)'
     ]
-    var expected = [
-      'CREATE INDEX "users_email" ON "public"."users" USING btree (email);'
-    ]
+    var expected = 'CREATE INDEX "users_email" ON "public"."users" USING btree (email);'
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
@@ -160,9 +180,7 @@ describe('dbdiff.compareDatabases', () => {
       'CREATE TABLE users (email VARCHAR(255))',
       'ALTER TABLE users ADD COLUMN first_name VARCHAR(255)'
     ]
-    var expected = [
-      'DROP INDEX "public"."users_email";'
-    ]
+    var expected = 'DROP INDEX "public"."users_email";'
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
@@ -179,11 +197,13 @@ describe('dbdiff.compareDatabases', () => {
       'ALTER TABLE users ADD COLUMN last_name VARCHAR(255)',
       'CREATE INDEX some_index ON "users" (last_name)'
     ]
-    var expected = [
-      '-- Index "public"."some_index" needs to be changed',
-      'DROP INDEX "public"."some_index";',
-      'CREATE INDEX "some_index" ON "public"."users" USING btree (last_name);'
-    ]
+    var expected = dedent`
+      -- Index "public"."some_index" needs to be changed
+
+      DROP INDEX "public"."some_index";
+
+      CREATE INDEX "some_index" ON "public"."users" USING btree (last_name);
+    `
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
@@ -193,10 +213,13 @@ describe('dbdiff.compareDatabases', () => {
       'CREATE TABLE users (email VARCHAR(255))',
       'CREATE INDEX users_email ON users (email)'
     ]
-    var expected = [
-      'CREATE TABLE "public"."users" (\n  "email" character varying(255) NULL\n);',
-      'CREATE INDEX "users_email" ON "public"."users" USING btree (email);'
-    ]
+    var expected = dedent`
+      CREATE TABLE "public"."users" (
+        "email" character varying(255) NULL
+      );
+
+      CREATE INDEX "users_email" ON "public"."users" USING btree (email);
+    `
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
@@ -208,7 +231,19 @@ describe('dbdiff.compareDatabases', () => {
       .then(() => exec(`node index.js ${conString1} ${conString2}`))
       .then((result) => {
         var { stdout } = result
-        assert.equal(stdout, 'DROP SEQUENCE "public"."seq_name";\n\n')
+        assert.equal(stdout, 'DROP SEQUENCE "public"."seq_name";\n')
+      })
+  })
+
+  it('should run as a cli application with level argument', () => {
+    var conString1 = 'postgres://postgres:postgres@localhost/db1'
+    var conString2 = 'postgres://postgres:postgres@localhost/db2'
+
+    return utils.runCommands(['CREATE TABLE users (email VARCHAR(255))'], [])
+      .then(() => exec(`node index.js -l safe ${conString1} ${conString2}`))
+      .then((result) => {
+        var { stdout } = result
+        assert.equal(stdout, '-- DROP TABLE "public"."users";\n')
       })
   })
 

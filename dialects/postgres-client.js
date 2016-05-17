@@ -2,15 +2,15 @@ var pg = require('pg')
 
 class PostgresClient {
   constructor (conString) {
-    this.client = new pg.Client(conString)
+    this.conString = conString
   }
 
   connect () {
     return new Promise((resolve, reject) => {
-      if (this.transaction) return resolve()
-      this.client.connect((err, transaction, done) => {
+      if (this.client) return resolve()
+      pg.connect(this.conString, (err, client, done) => {
         if (err) return reject(err)
-        this.transaction = transaction
+        this.client = client
         this.done = done
         resolve()
       })
@@ -21,7 +21,8 @@ class PostgresClient {
     return this.connect()
       .then(() => {
         return new Promise((resolve, reject) => {
-          this.transaction.query(sql, params, (err, result) => {
+          this.client.query(sql, params, (err, result) => {
+            this.done()
             err ? reject(err) : resolve(result)
           })
         })
@@ -34,11 +35,6 @@ class PostgresClient {
 
   findOne (sql, params = []) {
     return this.query(sql, params).then((result) => result.rows[0])
-  }
-
-  end () {
-    this.transaction = null
-    this.done && this.done()
   }
 }
 

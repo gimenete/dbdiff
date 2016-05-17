@@ -111,12 +111,7 @@ class PostgresDialect {
           delete sequence.cycle_option
           return sequence
         })
-        client.end()
         return schema
-      })
-      .catch((err) => {
-        client.end()
-        return Promise.reject(err)
       })
   }
 }

@@ -12,45 +12,63 @@ Install globally with `npm`
 npm install dbdiff -g
 ```
 
-# Usage
+# CLI Usage
 
 ```
 dbdiff \
+  -l safe
   postgres://user:pass@host[:port]/dbname1 \
   postgres://user:pass@host[:port]/dbname2
 ```
 
-# Caveats
+The flag `-l` or `--level` indicates the safety of the SQL. Allowed values are `safe`, `warn` and `drop`
 
-Some statements may fail or may produce data loss depending on the data stored in the target database. For example:
+# Safety level
 
-## Dropping tables and columns
+Some statements may fail or may produce data loss depending on the data stored in the target database.
 
-`dbdiff` will generate `DROP TABLE` and `DROP COLUMN` statements. Make sure you want to drop those tables / columns.
+- When the `safe` level is specified, only SQL statements that are guaranteed to preserve existing data will be printed. Any other command will be commented out.
+- When the `warn` level is specified also SQL statements that *may* fail because of existing data will be printed. These commands are for example: changes in data types or dropping a `NOT NULL` constraint.
+- When the `drop` level is specified all SQL statements are printed and this may contain `DROP COLUMN` or `DROP TABLE` statements.
+
+Dropping a sequence or dropping an index is considered safe.
 
 ## Changing the data type of existing columns
 
-Postgresql is not able to change the existing data to the new data type. In that case you will get an error similar to this:
+Sometimes Postgresql won't be able to change the existing data to the new data type. In that case you will get an error similar to this:
 
 ```
 ERROR:  column "column_name" cannot be cast automatically to type integer
 HINT:  Specify a USING expression to perform the conversion.
 ```
 
-So you will need to specify a `USING` expression to perform de conversion. For example to convert text to integers:
+You can manually specify a `USING` expression to perform de conversion. For example to convert text to integers:
 
 ```
 ALTER TABLE table_name
   ALTER column_name TYPE data_type USING column_name::integer
 ```
 
-## NOT NULL violations
+# Usage as a library
 
-If an existing column needs to be changed from nullable to not nullable the statement may fail if there are existing rows with a `NULL` value in that column.
-In that case you will get an error like:
+You can use `dbdiff` as a library:
 
+```javascript
+var dbdiff = require('dbdiff')
+
+dbdiff.describeDatabase(connString)
+  .then((schema) => {
+    // schema is a JSON-serializable object representing the database structure
+  })
+
+var diff = new dbdiff.DbDiff()
+// Compare two databases passing the connection strings
+diff.compare(conn1, conn2)
+  .then(() => {
+    console.log(diff.commands('drop'))
+  })
+
+// Compare two schemas
+diff.compareSchemas(schema1, schema2)
+console.log(diff.commands('drop'))
 ```
-ERROR:  column "column_name" contains null values.
-```
-
-You should fill the existing rows with not null values before making the column not nullable.

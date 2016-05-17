@@ -1,5 +1,5 @@
 var Client = require('../dialects/postgres-client')
-var dbdiff = require('../')
+var DbDiff = require('../dbdiff')
 var assert = require('assert')
 var pync = require('pync')
 
@@ -17,27 +17,28 @@ exports.resetDatabases = () => {
 }
 
 exports.runCommands = (commands1, commands2) => {
-  return Promise.all([
-    pync.series(commands1, (command) => client1.query(command)),
-    pync.series(commands2, (command) => client2.query(command))
-  ])
+  return exports.resetDatabases()
+    .then(() => Promise.all([
+      pync.series(commands1, (command) => client1.query(command)),
+      pync.series(commands2, (command) => client2.query(command))
+    ]))
 }
 
-exports.runAndCompare = (commands1, commands2, expected) => {
-  var arr = []
-  dbdiff.logger = (msg) => {
-    if (msg) {
-      arr.push(msg)
-    }
-  }
-  return exports.runCommands(commands1, commands2)
-    .then(() => dbdiff.compareDatabases(conString1, conString2))
-    .then(() => client1.query(arr.join('\n')))
-    .then(() => {
-      assert.deepEqual(arr, expected)
-      // compare again the dbs
-      arr.splice(0)
-      return dbdiff.compareDatabases(conString1, conString2)
-    })
-    .then(() => assert.deepEqual(arr, []))
+exports.runAndCompare = (commands1, commands2, expected, levels = ['drop', 'warn', 'safe']) => {
+  var dbdiff = new DbDiff()
+  return pync.series(levels, (level) => {
+    return exports.runCommands(commands1, commands2)
+      .then(() => dbdiff.compare(conString1, conString2))
+      .then(() => assert.equal(dbdiff.commands(level), expected))
+      .then(() => client1.query(dbdiff.commands(level)))
+      .then(() => dbdiff.compare(conString1, conString2))
+      .then(() => {
+        var lines = dbdiff.commands(level).split('\n')
+        lines.forEach((line) => {
+          if (line.length > 0 && line.substring(0, 2) !== '--') {
+            assert.fail(`After running commands there is a change not executed: ${line}`)
+          }
+        })
+      })
+  })
 }
