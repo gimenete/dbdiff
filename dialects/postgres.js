@@ -29,7 +29,8 @@ class PostgresDialect {
           var t = {
             name: table.tablename,
             schema: table.schemaname,
-            indexes: []
+            indexes: [],
+            constraints: []
           }
           return client.find(`
             SELECT
@@ -83,7 +84,8 @@ class PostgresDialect {
             ON i.relam = am.oid
           JOIN pg_namespace as ns
             ON ns.oid = i.relnamespace
-            AND ns.nspname NOT IN ('pg_catalog', 'pg_toast');
+            AND ns.nspname NOT IN ('pg_catalog', 'pg_toast')
+          WHERE (NOT idx.indisprimary) AND (NOT idx.indisunique);
         `)
       })
       .then((indexes) => {
@@ -92,11 +94,44 @@ class PostgresDialect {
           table.indexes.push({
             name: index.indname,
             schema: table.schema,
-            primary: index.indisprimary,
-            unique: index.indisunique,
             type: index.indam,
             keys: index.indkey_names
           })
+        })
+        return client.find(`
+          SELECT conrelid::regclass AS table_from, n.nspname, contype, conname, pg_get_constraintdef(c.oid) AS description
+          FROM   pg_constraint c
+          JOIN   pg_namespace n ON n.oid = c.connamespace
+          WHERE  contype IN ('f', 'p', 'u')
+          ORDER  BY conrelid::regclass::text, contype DESC;
+        `)
+      })
+      .then((constraints) => {
+        var types = {
+          u: 'unique',
+          f: 'foreign',
+          p: 'primary'
+        }
+        constraints.forEach((constraint) => {
+          var table = schema.tables.find((table) => table.name === constraint.table_from && table.schema === constraint.nspname)
+          var { description } = constraint
+          var i = description.indexOf('(')
+          var n = description.indexOf(')')
+          var m = description.indexOf('REFERENCES')
+          var info = {
+            name: constraint.conname,
+            schema: table.schema,
+            type: types[constraint.contype],
+            keys: description.substring(i + 1, n).split(',').map((s) => s.trim())
+          }
+          table.constraints.push(info)
+          if (m > 0) {
+            var substr = description.substring(m + 'REFERENCES'.length)
+            i = substr.indexOf('(')
+            n = substr.indexOf(')')
+            info.foreign_table = substr.substring(0, i).trim()
+            info.foreign_keys = substr.substring(i + 1, n).split(',').map((s) => s.trim())
+          }
         })
         return client.find('SELECT * FROM information_schema.sequences')
       })

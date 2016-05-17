@@ -166,7 +166,7 @@ describe('dbdiff.compareDatabases', () => {
       'ALTER TABLE users ADD COLUMN first_name VARCHAR(255)',
       'CREATE INDEX users_email ON "users" (email)'
     ]
-    var expected = 'CREATE INDEX "users_email" ON "public"."users" USING btree (email);'
+    var expected = 'CREATE INDEX "users_email" ON "public"."users" USING btree ("email");'
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
@@ -202,7 +202,7 @@ describe('dbdiff.compareDatabases', () => {
 
       DROP INDEX "public"."some_index";
 
-      CREATE INDEX "some_index" ON "public"."users" USING btree (last_name);
+      CREATE INDEX "some_index" ON "public"."users" USING btree ("last_name");
     `
     return utils.runAndCompare(commands1, commands2, expected)
   })
@@ -219,6 +219,40 @@ describe('dbdiff.compareDatabases', () => {
       );
 
       CREATE INDEX "users_email" ON "public"."users" USING btree (email);
+    `
+    return utils.runAndCompare(commands1, commands2, expected)
+  })
+
+  it('should support all constraint types', () => {
+    var commands1 = []
+    var commands2 = [
+      'CREATE TABLE users (id serial, email VARCHAR(255));',
+      'CREATE TABLE items (id serial, name VARCHAR(255), user_id bigint);',
+      'ALTER TABLE users ADD CONSTRAINT users_pk PRIMARY KEY (id);',
+      'ALTER TABLE users ADD CONSTRAINT email_unique UNIQUE (email);',
+      'ALTER TABLE items ADD CONSTRAINT items_fk FOREIGN KEY (user_id) REFERENCES users (id);'
+    ]
+    var expected = dedent`
+      CREATE SEQUENCE "public"."users_id_seq" INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 NO CYCLE;
+
+      CREATE SEQUENCE "public"."items_id_seq" INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 START 1 NO CYCLE;
+
+      CREATE TABLE "public"."users" (
+        "id" integer DEFAULT nextval('users_id_seq'::regclass) NOT NULL,
+        "email" character varying(255) NULL
+      );
+
+      CREATE TABLE "public"."items" (
+        "id" integer DEFAULT nextval('items_id_seq'::regclass) NOT NULL,
+        "name" character varying(255) NULL,
+        "user_id" bigint NULL
+      );
+
+      ALTER TABLE "public"."users" ADD CONSTRAINT "email_unique" UNIQUE ("email");
+
+      ALTER TABLE "public"."users" ADD CONSTRAINT "users_pk" PRIMARY KEY ("id");
+
+      ALTER TABLE "public"."items" ADD CONSTRAINT "items_fk" FOREIGN KEY ("user_id") REFERENCES "users" ("id");
     `
     return utils.runAndCompare(commands1, commands2, expected)
   })

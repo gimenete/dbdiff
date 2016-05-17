@@ -65,14 +65,8 @@ class DbDiff {
 
   _createIndex (table, index) {
     var tableName = this._fullName(table)
-    var keys = index.keys.join(',')
-    if (index.primary) {
-      this._warn(`ALTER TABLE ${tableName} ADD CONSTRAINT "${index.name}" PRIMARY KEY (${keys});`)
-    } else if (index.unique) {
-      this._warn(`ALTER TABLE ${tableName} ADD CONSTRAINT "${index.name}" UNIQUE (${keys});`)
-    } else {
-      this._safe(`CREATE INDEX "${index.name}" ON ${tableName} USING ${index.type} (${keys});`)
-    }
+    var keys = index.keys.map((key) => `"${key}"`) .join(',')
+    this._safe(`CREATE INDEX "${index.name}" ON ${tableName} USING ${index.type} (${keys});`)
   }
 
   _dropIndex (index) {
@@ -146,6 +140,31 @@ class DbDiff {
     })
   }
 
+  _compareConstraints (table1, table2) {
+    var tableName = this._fullName(table2)
+    table2.constraints.forEach((constraint2) => {
+      var constraint1 = table1 && table1.constraints.find((cons) => constraint2.name === cons.name)
+      if (constraint1) {
+        if (!_.isEqual(constraint1, constraint2)) {
+          // TODO: drop current constraint
+          // constraint1 = null
+        }
+      }
+      if (!constraint1) {
+        var keys = constraint2.keys.map((s) => `"${s}"`).join(', ')
+        var func = (table1 ? this._warn : this._safe).bind(this)
+        if (constraint2.type === 'primary') {
+          func(`ALTER TABLE ${tableName} ADD CONSTRAINT "${constraint2.name}" PRIMARY KEY (${keys});`)
+        } else if (constraint2.type === 'unique') {
+          func(`ALTER TABLE ${tableName} ADD CONSTRAINT "${constraint2.name}" UNIQUE (${keys});`)
+        } else if (constraint2.type === 'foreign') {
+          var foreignKeys = constraint2.foreign_keys.map((s) => `"${s}"`).join(', ')
+          func(`ALTER TABLE ${tableName} ADD CONSTRAINT "${constraint2.name}" FOREIGN KEY (${keys}) REFERENCES "${constraint2.foreign_table}" (${foreignKeys});`)
+        }
+      }
+    })
+  }
+
   compareSchemas (db1, db2) {
     this._compareSequences(db1, db2)
 
@@ -174,6 +193,11 @@ class DbDiff {
         this._compareTables(t, table)
         this._compareIndexes(t, table)
       }
+    })
+
+    db2.tables.forEach((table) => {
+      var t = this._findTable(db1, table)
+      this._compareConstraints(t, table)
     })
   }
 
