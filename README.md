@@ -90,3 +90,116 @@ dbdiff.describeDatabase({
   // ...
 })
 ```
+
+# Example of `.describeDatabase()` output
+
+```json
+{
+  "tables": [
+    {
+      "name": "users",
+      "schema": "public",
+      "indexes": [],
+      "constraints": [
+        {
+          "name": "email_unique",
+          "schema": "public",
+          "type": "unique",
+          "keys": [
+            "email"
+          ]
+        },
+        {
+          "name": "users_pk",
+          "schema": "public",
+          "type": "primary",
+          "keys": [
+            "id"
+          ]
+        }
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "nullable": false,
+          "defaultValue": "nextval('users_id_seq'::regclass)",
+          "type": "integer"
+        },
+        {
+          "name": "email",
+          "nullable": true,
+          "defaultValue": null,
+          "type": "character varying(255)"
+        }
+      ]
+    },
+    {
+      "name": "items",
+      "schema": "public",
+      "indexes": [],
+      "constraints": [
+        {
+          "name": "items_fk",
+          "schema": "public",
+          "type": "foreign",
+          "keys": [
+            "user_id"
+          ],
+          "foreign_table": "users",
+          "foreign_keys": [
+            "id"
+          ]
+        }
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "nullable": false,
+          "defaultValue": "nextval('items_id_seq'::regclass)",
+          "type": "integer"
+        },
+        {
+          "name": "name",
+          "nullable": true,
+          "defaultValue": null,
+          "type": "character varying(255)"
+        },
+        {
+          "name": "user_id",
+          "nullable": true,
+          "defaultValue": null,
+          "type": "bigint"
+        }
+      ]
+    }
+  ],
+  "sequences": [
+    {
+      "data_type": "bigint",
+      "numeric_precision": 64,
+      "numeric_precision_radix": 2,
+      "numeric_scale": 0,
+      "start_value": "1",
+      "minimum_value": "1",
+      "maximum_value": "9223372036854775807",
+      "increment": "1",
+      "schema": "public",
+      "name": "users_id_seq",
+      "cycle": false
+    },
+    {
+      "data_type": "bigint",
+      "numeric_precision": 64,
+      "numeric_precision_radix": 2,
+      "numeric_scale": 0,
+      "start_value": "1",
+      "minimum_value": "1",
+      "maximum_value": "9223372036854775807",
+      "increment": "1",
+      "schema": "public",
+      "name": "items_id_seq",
+      "cycle": false
+    }
+  ]
+}
+```
