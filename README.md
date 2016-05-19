@@ -145,8 +145,8 @@ dbdiff.describeDatabase({
           "keys": [
             "user_id"
           ],
-          "foreign_table": "users",
-          "foreign_keys": [
+          "referenced_table": "users",
+          "referenced_columns": [
             "id"
           ]
         }

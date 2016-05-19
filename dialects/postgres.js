@@ -1,10 +1,9 @@
 var dialects = require('./')
-var querystring = require('querystring')
 var pync = require('pync')
 var PostgresClient = require('./postgres-client')
 
 class PostgresDialect {
-  _unescape (str) {
+  _unquote (str) {
     if (str.substring(0, 1) === '"' && str.substring(str.length - 1) === '"') {
       return str.substring(1, str.length - 1)
     }
@@ -12,24 +11,8 @@ class PostgresDialect {
   }
 
   describeDatabase (options) {
-    var conString
-    if (typeof options === 'string') {
-      conString = options
-    } else {
-      var dialectOptions = Object.assign({}, options.dialectOptions)
-      Object.keys(dialectOptions).forEach((key) => {
-        var value = dialectOptions[key]
-        if (typeof value === 'boolean') {
-          dialectOptions[key] = value ? 'true' : 'false'
-        }
-      })
-      var query = querystring.stringify(dialectOptions)
-      if (query.length > 0) query = '?' + query
-      conString = `postgres://${options.username}:${options.password}@${options.host}:${options.port || 5432}/${options.database}${query}`
-    }
-
-    var schema = {}
-    var client = new PostgresClient(conString)
+    var schema = { dialect: 'postgres' }
+    var client = new PostgresClient(options)
     return client.find('SELECT * FROM pg_tables WHERE schemaname NOT IN ($1, $2, $3)', ['temp', 'pg_catalog', 'information_schema'])
       .then((tables) => (
         pync.map(tables, (table) => {
@@ -102,7 +85,7 @@ class PostgresDialect {
             name: index.indname,
             schema: table.schema,
             type: index.indam,
-            keys: index.indkey_names
+            columns: index.indkey_names
           })
         })
         return client.find(`
@@ -120,7 +103,7 @@ class PostgresDialect {
           p: 'primary'
         }
         constraints.forEach((constraint) => {
-          var tableFrom = this._unescape(constraint.table_from)
+          var tableFrom = this._unquote(constraint.table_from)
           var table = schema.tables.find((table) => table.name === tableFrom && table.schema === constraint.nspname)
           var { description } = constraint
           var i = description.indexOf('(')
@@ -130,15 +113,15 @@ class PostgresDialect {
             name: constraint.conname,
             schema: table.schema,
             type: types[constraint.contype],
-            keys: description.substring(i + 1, n).split(',').map((s) => s.trim())
+            columns: description.substring(i + 1, n).split(',').map((s) => s.trim())
           }
           table.constraints.push(info)
           if (m > 0) {
             var substr = description.substring(m + 'REFERENCES'.length)
             i = substr.indexOf('(')
             n = substr.indexOf(')')
-            info.foreign_table = substr.substring(0, i).trim()
-            info.foreign_keys = substr.substring(i + 1, n).split(',').map((s) => s.trim())
+            info.referenced_table = substr.substring(0, i).trim()
+            info.referenced_columns = substr.substring(i + 1, n).split(',').map((s) => s.trim())
           }
         })
         return client.find('SELECT * FROM information_schema.sequences')

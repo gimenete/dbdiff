@@ -1,55 +1,52 @@
-var Client = require('../dialects/postgres-client')
 var DbDiff = require('../dbdiff')
 var assert = require('assert')
 var pync = require('pync')
 
-var conString1 = 'postgres://postgres:postgres@localhost/db1'
-var conString2 = 'postgres://postgres:postgres@localhost/db2'
+class Utils {
+  constructor (dialect, conn1, conn2) {
+    var Client = require(`../dialects/${dialect}-client`)
+    this.dialect = dialect
+    this.conn1 = conn1
+    this.conn2 = conn2
+    this.client1 = new Client(conn1)
+    this.client2 = new Client(conn2)
+  }
 
-var conSettings2 = {
-  dialect: 'postgres',
-  username: 'postgres',
-  password: 'postgres',
-  database: 'db2',
-  host: 'localhost',
-  dialectOptions: {
-    ssl: false
+  resetDatabases () {
+    return Promise.all([
+      this.client1.dropTables(),
+      this.client2.dropTables()
+    ])
+  }
+
+  runCommands (commands1, commands2) {
+    return this.resetDatabases()
+      .then(() => Promise.all([
+        pync.series(commands1, (command) => this.client1.query(command)),
+        pync.series(commands2, (command) => this.client2.query(command))
+      ]))
+  }
+
+  runAndCompare (commands1, commands2, expected, levels = ['drop', 'warn', 'safe']) {
+    var dbdiff = new DbDiff()
+    return pync.series(levels, (level) => {
+      return this.runCommands(commands1, commands2)
+        .then(() => dbdiff.compare(this.conn1, this.conn2))
+        .then(() => assert.equal(dbdiff.commands(level), expected))
+        .then(() => this.client1.query(dbdiff.commands(level)))
+        .then(() => dbdiff.compare(this.conn1, this.conn2))
+        .then(() => {
+          var lines = dbdiff.commands(level).split('\n')
+          lines.forEach((line) => {
+            if (line.length > 0 && line.substring(0, 2) !== '--') {
+              assert.fail(`After running commands there is a change not executed: ${line}`)
+            }
+          })
+        })
+    })
   }
 }
 
-var client1 = new Client(conString1)
-var client2 = new Client(conString2)
-
-exports.resetDatabases = () => {
-  return Promise.all([
-    client1.query('drop schema public cascade; create schema public;'),
-    client2.query('drop schema public cascade; create schema public;')
-  ])
-}
-
-exports.runCommands = (commands1, commands2) => {
-  return exports.resetDatabases()
-    .then(() => Promise.all([
-      pync.series(commands1, (command) => client1.query(command)),
-      pync.series(commands2, (command) => client2.query(command))
-    ]))
-}
-
-exports.runAndCompare = (commands1, commands2, expected, levels = ['drop', 'warn', 'safe']) => {
-  var dbdiff = new DbDiff()
-  return pync.series(levels, (level) => {
-    return exports.runCommands(commands1, commands2)
-      .then(() => dbdiff.compare(conString1, conSettings2))
-      .then(() => assert.equal(dbdiff.commands(level), expected))
-      .then(() => client1.query(dbdiff.commands(level)))
-      .then(() => dbdiff.compare(conString1, conString2))
-      .then(() => {
-        var lines = dbdiff.commands(level).split('\n')
-        lines.forEach((line) => {
-          if (line.length > 0 && line.substring(0, 2) !== '--') {
-            assert.fail(`After running commands there is a change not executed: ${line}`)
-          }
-        })
-      })
-  })
+module.exports = (dialect, conn1, conn2) => {
+  return new Utils(dialect, conn1, conn2)
 }

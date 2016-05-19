@@ -24,6 +24,10 @@ class DbDiff {
     this._log(sql, 0)
   }
 
+  _quote (name) {
+    return this._quotation + name + this._quotation
+  }
+
   _compareTables (table1, table2) {
     var tableName = this._fullName(table1)
 
@@ -34,12 +38,12 @@ class DbDiff {
     var diff2 = _.difference(columNames2, columNames1)
 
     diff1.forEach((columnName) => {
-      this._drop(`ALTER TABLE ${tableName} DROP COLUMN "${columnName}";`)
+      this._drop(`ALTER TABLE ${tableName} DROP COLUMN ${this._quote(columnName)};`)
     })
 
     diff2.forEach((columnName) => {
       var col = table2.columns.find((column) => column.name === columnName)
-      this._safe(`ALTER TABLE ${tableName} ADD COLUMN "${columnName}" ${this._columnDescription(col)};`)
+      this._safe(`ALTER TABLE ${tableName} ADD COLUMN ${this._quote(columnName)} ${this._columnDescription(col)};`)
     })
 
     var common = _.intersection(columNames1, columNames2)
@@ -47,17 +51,24 @@ class DbDiff {
       var col1 = table1.columns.find((column) => column.name === columnName)
       var col2 = table2.columns.find((column) => column.name === columnName)
 
+      if (this._dialect === 'mysql' && !_.isEqual(col1, col2)) {
+        var func = (col1.type !== col2.type || (col1.nullable !== col2.nullable && !col2.nullable)) ? this._warn : this._safe
+        var extra = col2.extra ? ' ' + col2.extra : ''
+        var comment = col1.type !== col2.type ? `-- Previous data type was ${col1.type}\n` : ''
+        func.bind(this)(`${comment}ALTER TABLE ${tableName} MODIFY ${this._quote(columnName)} ${this._columnDescription(col2)}${extra};`)
+        return
+      }
       if (col1.type !== col2.type) {
         this._warn(dedent`
           -- Previous data type was ${col1.type}
-          ALTER TABLE ${tableName} ALTER COLUMN "${columnName}" SET DATA TYPE ${col2.type};
+          ALTER TABLE ${tableName} ALTER COLUMN ${this._quote(columnName)} SET DATA TYPE ${col2.type};
         `)
       }
       if (col1.nullable !== col2.nullable) {
         if (col2.nullable) {
-          this._safe(`ALTER TABLE ${tableName} ALTER COLUMN "${columnName}" DROP NOT NULL;`)
+          this._safe(`ALTER TABLE ${tableName} ALTER COLUMN ${this._quote(columnName)} DROP NOT NULL;`)
         } else {
-          this._warn(`ALTER TABLE ${tableName} ALTER COLUMN "${columnName}" SET NOT NULL;`)
+          this._warn(`ALTER TABLE ${tableName} ALTER COLUMN ${this._quote(columnName)} SET NOT NULL;`)
         }
       }
     })
@@ -65,12 +76,21 @@ class DbDiff {
 
   _createIndex (table, index) {
     var tableName = this._fullName(table)
-    var keys = index.keys.map((key) => `"${key}"`) .join(',')
-    this._safe(`CREATE INDEX "${index.name}" ON ${tableName} USING ${index.type} (${keys});`)
+    var keys = index.columns.map((key) => `${this._quote(key)}`).join(',')
+    if (this._dialect === 'postgres') {
+      this._safe(`CREATE INDEX ${this._quote(index.name)} ON ${tableName} USING ${index.type} (${keys});`)
+    } else {
+      // mysql
+      this._safe(`CREATE INDEX ${this._quote(index.name)} USING ${index.type} ON ${tableName} (${keys});`)
+    }
   }
 
-  _dropIndex (index) {
-    this._safe(`DROP INDEX "${index.schema}"."${index.name}";`)
+  _dropIndex (table, index) {
+    if (this._dialect === 'postgres') {
+      this._safe(`DROP INDEX ${this._fullName(index)};`)
+    } else {
+      this._safe(`DROP INDEX ${this._fullName(index)} ON ${this._fullName(table)};`)
+    }
   }
 
   _compareIndexes (table1, table2) {
@@ -83,7 +103,7 @@ class DbDiff {
     if (diff1.length > 0) {
       diff1.forEach((indexName) => {
         var index = table1.indexes.find((index) => index.name === indexName)
-        this._dropIndex(index)
+        this._dropIndex(table1, index)
       })
     }
     if (diff2.length > 0) {
@@ -98,12 +118,12 @@ class DbDiff {
       var index1 = table1.indexes.find((index) => index.name === indexName)
       var index2 = table2.indexes.find((index) => index.name === indexName)
 
-      if (_.difference(index1.keys, index2.keys).length > 0 ||
+      if (_.difference(index1.columns, index2.columns).length > 0 ||
         index1.primary !== index2.primary ||
         index1.unique !== index2.unique) {
         var index = index2
-        this._comment(`-- Index "${index.schema}"."${index.name}" needs to be changed`)
-        this._dropIndex(index)
+        this._comment(`-- Index ${this._fullName(index)} needs to be changed`)
+        this._dropIndex(table1, index)
         this._createIndex(table1, index)
       }
     })
@@ -146,19 +166,21 @@ class DbDiff {
       var constraint1 = table1 && table1.constraints.find((cons) => constraint2.name === cons.name)
       if (constraint1) {
         if (_.isEqual(constraint1, constraint2)) return
-        this._safe(`ALTER TABLE ${tableName} DROP CONSTRAINT "${constraint2.name}";`)
+        this._safe(`ALTER TABLE ${tableName} DROP CONSTRAINT ${this._quote(constraint2.name)};`)
         constraint1 = null
       }
       if (!constraint1) {
-        var keys = constraint2.keys.map((s) => `"${s}"`).join(', ')
+        var keys = constraint2.columns.map((s) => `${this._quote(s)}`).join(', ')
         var func = (table1 ? this._warn : this._safe).bind(this)
+        var fullName = this._quote(constraint2.name)
         if (constraint2.type === 'primary') {
-          func(`ALTER TABLE ${tableName} ADD CONSTRAINT "${constraint2.name}" PRIMARY KEY (${keys});`)
+          if (this._dialect === 'mysql') fullName = 'foo'
+          func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} PRIMARY KEY (${keys});`)
         } else if (constraint2.type === 'unique') {
-          func(`ALTER TABLE ${tableName} ADD CONSTRAINT "${constraint2.name}" UNIQUE (${keys});`)
+          func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} UNIQUE (${keys});`)
         } else if (constraint2.type === 'foreign') {
-          var foreignKeys = constraint2.foreign_keys.map((s) => `"${s}"`).join(', ')
-          func(`ALTER TABLE ${tableName} ADD CONSTRAINT "${constraint2.name}" FOREIGN KEY (${keys}) REFERENCES "${constraint2.foreign_table}" (${foreignKeys});`)
+          var foreignKeys = constraint2.referenced_columns.map((s) => `${this._quote(s)}`).join(', ')
+          func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} FOREIGN KEY (${keys}) REFERENCES ${this._quote(constraint2.referenced_table)} (${foreignKeys});`)
         }
       }
     })
@@ -179,14 +201,20 @@ class DbDiff {
       var tableName = this._fullName(table)
       if (!t) {
         var columns = table.columns.map((col) => {
-          return `\n  "${col.name}" ${this._columnDescription(col)}`
+          var extra = ''
+          if (col.extra === 'auto_increment') {
+            extra = ' PRIMARY KEY AUTO_INCREMENT'
+            var constraint = table.constraints.find((constraints) => constraints.type === 'primary')
+            table.constraints.splice(table.constraints.indexOf(constraint), 1)
+          }
+          return `\n  ${this._quote(col.name)} ${this._columnDescription(col)}${extra}`
         })
         this._safe(`CREATE TABLE ${tableName} (${columns.join(',')}\n);`)
 
         var indexNames2 = this._indexNames(table)
         indexNames2.forEach((indexName) => {
           var index = table.indexes.find((index) => index.name === indexName)
-          this._safe(`CREATE INDEX "${index.name}" ON ${tableName} USING ${index.type} (${index.keys.join(', ')});`)
+          this._createIndex(table, index)
         })
       } else {
         this._compareTables(t, table)
@@ -209,6 +237,11 @@ class DbDiff {
     .then((results) => {
       var db1 = results[0]
       var db2 = results[1]
+      this._dialect = db1.dialect
+      this._quotation = {
+        mysql: '`',
+        postgres: '"'
+      }[this._dialect]
       this.compareSchemas(db1, db2)
     })
   }
@@ -254,7 +287,8 @@ class DbDiff {
   }
 
   _fullName (obj) {
-    return `"${obj.schema}"."${obj.name}"`
+    if (obj.schema) return `${this._quote(obj.schema)}.${this._quote(obj.name)}`
+    return this._quote(obj.name)
   }
 
   _findTable (db, table) {

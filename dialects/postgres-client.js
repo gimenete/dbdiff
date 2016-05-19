@@ -1,8 +1,28 @@
 var pg = require('pg')
+var querystring = require('querystring')
 
 class PostgresClient {
-  constructor (conString) {
+  constructor (options) {
+    var conString
+    if (typeof options === 'string') {
+      conString = options
+    } else {
+      var dialectOptions = Object.assign({}, options.dialectOptions)
+      Object.keys(dialectOptions).forEach((key) => {
+        var value = dialectOptions[key]
+        if (typeof value === 'boolean') {
+          dialectOptions[key] = value ? 'true' : 'false'
+        }
+      })
+      var query = querystring.stringify(dialectOptions)
+      if (query.length > 0) query = '?' + query
+      conString = `postgres://${options.username}:${options.password}@${options.host}:${options.port || 5432}/${options.database}${query}`
+    }
     this.conString = conString
+  }
+
+  dropTables () {
+    return this.query('drop schema public cascade; create schema public;')
   }
 
   connect () {

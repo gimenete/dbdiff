@@ -1,18 +1,20 @@
 /* globals describe it */
-var utils = require('./utils')
-var assert = require('assert')
-var childProcess = require('child_process')
 var dedent = require('dedent')
 
-const exec = (cmd) => {
-  return new Promise((resolve, reject) => {
-    childProcess.exec(cmd, (err, stdout, stderr) => {
-      err && !stderr ? reject(err) : resolve({ stdout, stderr })
-    })
-  })
+var conString1 = 'postgres://postgres:postgres@localhost/db1'
+var conSettings2 = {
+  dialect: 'postgres',
+  username: 'postgres',
+  password: 'postgres',
+  database: 'db2',
+  host: 'localhost',
+  dialectOptions: {
+    ssl: false
+  }
 }
+var utils = require('./utils')('postgres', conString1, conSettings2)
 
-describe('dbdiff.compareDatabases', () => {
+describe('Postgresql', () => {
   it('should create a table', () => {
     var commands1 = []
     var commands2 = ['CREATE TABLE users (email VARCHAR(255), tags varchar(255)[])']
@@ -39,7 +41,7 @@ describe('dbdiff.compareDatabases', () => {
       })
   })
 
-  it('should create a table wih an index', () => {
+  it('should create a table wih a serial sequence', () => {
     var commands1 = []
     var commands2 = ['CREATE TABLE users (id serial)']
     var expected = dedent`
@@ -218,7 +220,7 @@ describe('dbdiff.compareDatabases', () => {
         "email" character varying(255) NULL
       );
 
-      CREATE INDEX "users_email" ON "public"."users" USING btree (email);
+      CREATE INDEX "users_email" ON "public"."users" USING btree ("email");
     `
     return utils.runAndCompare(commands1, commands2, expected)
   })
@@ -282,41 +284,6 @@ describe('dbdiff.compareDatabases', () => {
           -- ALTER TABLE "public"."users" ADD CONSTRAINT "a_unique_constraint" UNIQUE ("api_key");
         `
         return utils.runAndCompare(commands1, commands2, expected, ['safe'])
-      })
-  })
-
-  it('should run as a cli application', () => {
-    var conString1 = 'postgres://postgres:postgres@localhost/db1'
-    var conString2 = 'postgres://postgres:postgres@localhost/db2'
-
-    return utils.runCommands(['CREATE SEQUENCE seq_name'], [])
-      .then(() => exec(`node index.js ${conString1} ${conString2}`))
-      .then((result) => {
-        var { stdout } = result
-        assert.equal(stdout, 'DROP SEQUENCE "public"."seq_name";\n')
-      })
-  })
-
-  it('should run as a cli application with level argument', () => {
-    var conString1 = 'postgres://postgres:postgres@localhost/db1'
-    var conString2 = 'postgres://postgres:postgres@localhost/db2'
-
-    return utils.runCommands(['CREATE TABLE users (email VARCHAR(255))'], [])
-      .then(() => exec(`node index.js -l safe ${conString1} ${conString2}`))
-      .then((result) => {
-        var { stdout } = result
-        assert.equal(stdout, '-- DROP TABLE "public"."users";\n')
-      })
-  })
-
-  it('should fail with an erorr', () => {
-    var conString1 = 'postgres://postgres:postgres@localhost/db1'
-    var conString2 = 'postgres://postgres:postgres@localhost/none'
-
-    return exec(`node index.js ${conString1} ${conString2}`)
-      .then((result) => {
-        var { stderr } = result
-        assert.ok(stderr.indexOf('error: database "none" does not exist') >= 0)
       })
   })
 })

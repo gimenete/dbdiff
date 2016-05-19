@@ -31,3 +31,4 @@ exports.describeDatabase = (options) => {
 }
 
 require('./postgres')
+require('./mysql')
