@@ -1,27 +1,52 @@
 var mysql = require('mysql')
+var url = require('url')
+var querystring = require('querystring')
+
+var connections = {}
 
 class MysqlClient {
   constructor (options) {
+    if (typeof options === 'string') {
+      var info = url.parse(options)
+      var auth = info.auth && info.auth.split(':')
+      var more = info.query && querystring.parse(info.query)
+      options = Object.assign({
+        dialect: 'mysql',
+        username: auth[0],
+        password: auth[1],
+        database: (info.pathname || '/').substring(1),
+        host: info.host
+      }, more)
+    }
     this.options = Object.assign({
       user: options.username,
       multipleStatements: true
     }, options)
-    this.pool = mysql.createPool(this.options)
+    this.database = options.database
+
+    var key = `${options.username}:${options.password}@${options.host}/${options.database}`
+    var conn = connections[key]
+    if (!conn) {
+      conn = connections[key] = mysql.createConnection(this.options)
+    }
+    this.connection = conn
   }
 
   dropTables () {
-    return this.findOne(`
+    return this.find(`
       SELECT concat('DROP TABLE IF EXISTS ', table_name, ';') AS fullSQL
       FROM information_schema.tables
       WHERE table_schema = ?;
     `, [this.options.database])
-      .then((result) => result && this.query(result.fullSQL))
+      .then((results) => {
+        var sql = results.map((result) => result.fullSQL).join(' ')
+        return sql && this.query(sql)
+      })
   }
 
   query (sql, params = []) {
     return new Promise((resolve, reject) => {
-      this.pool.query(sql, params, (err, rows, fields) => {
-        if (err) console.log('-> ', sql, params)
+      this.connection.query(sql, params, (err, rows, fields) => {
         err ? reject(err) : resolve({ rows, fields })
       })
     })

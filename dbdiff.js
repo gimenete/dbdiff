@@ -166,7 +166,11 @@ class DbDiff {
       var constraint1 = table1 && table1.constraints.find((cons) => constraint2.name === cons.name)
       if (constraint1) {
         if (_.isEqual(constraint1, constraint2)) return
-        this._safe(`ALTER TABLE ${tableName} DROP CONSTRAINT ${this._quote(constraint2.name)};`)
+        if (this._dialect === 'postgres') {
+          this._safe(`ALTER TABLE ${tableName} DROP CONSTRAINT ${this._quote(constraint2.name)};`)
+        } else {
+          this._safe(`ALTER TABLE ${tableName} DROP INDEX ${this._quote(constraint2.name)};`)
+        }
         constraint1 = null
       }
       if (!constraint1) {

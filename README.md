@@ -1,8 +1,10 @@
 # dbdiff
 
-Compares two postgresql databases and prints SQL commands to modify the first one in order to match the second one.
+Compares two databases and prints SQL commands to modify the first one in order to match the second one.
 
-**It does NOT execute the statements**. It only prints the statements to the standard output.
+**It does NOT execute the statements**. It only prints the statements.
+
+It supports PostgreSQL and MySQL.
 
 # Installing
 
@@ -17,9 +19,11 @@ npm install dbdiff -g
 ```
 dbdiff \
   -l safe
-  postgres://user:pass@host[:port]/dbname1 \
-  postgres://user:pass@host[:port]/dbname2
+  dialect://user:pass@host[:port]/dbname1 \
+  dialect://user:pass@host[:port]/dbname2
 ```
+
+Where `dialect` can be either `postgres` or `mysql`.
 
 The flag `-l` or `--level` indicates the safety of the SQL. Allowed values are `safe`, `warn` and `drop`
 
@@ -77,7 +81,7 @@ You can pass connection strings such as `postgres://user:pass@host:5432/dbname1`
 
 ```javascript
 dbdiff.describeDatabase({
-  dialect: 'postgres',
+  dialect: 'postgres', // use `mysql` for mysql
   username: 'user',
   password: 'pass',
   database: 'dbname1',

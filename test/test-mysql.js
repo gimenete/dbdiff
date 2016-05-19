@@ -1,12 +1,6 @@
 /* globals describe it */
 var dedent = require('dedent')
-var conSettings1 = {
-  dialect: 'mysql',
-  username: 'root',
-  password: '',
-  database: 'db1',
-  host: 'localhost'
-}
+var conString1 = 'mysql://root:@localhost/db1'
 var conSettings2 = {
   dialect: 'mysql',
   username: 'root',
@@ -14,7 +8,7 @@ var conSettings2 = {
   database: 'db2',
   host: 'localhost'
 }
-var utils = require('./utils')('mysql', conSettings1, conSettings2)
+var utils = require('./utils')('mysql', conString1, conSettings2)
 
 describe('MySQL', () => {
   it('should create a table', () => {
@@ -209,7 +203,7 @@ describe('MySQL', () => {
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
-  it.skip('should support all constraint types', () => {
+  it('should support all constraint types', () => {
     var commands1 = []
     var commands2 = [
       'CREATE TABLE users (id bigint primary key auto_increment, email VARCHAR(255));',
@@ -236,7 +230,7 @@ describe('MySQL', () => {
     return utils.runAndCompare(commands1, commands2, expected)
   })
 
-  it.skip('should support existing constriants with the same name', () => {
+  it('should support existing constriants with the same name', () => {
     var commands1 = [
       'CREATE TABLE users (email VARCHAR(255), api_key VARCHAR(255));',
       'ALTER TABLE users ADD CONSTRAINT a_unique_constraint UNIQUE (email);'
@@ -248,17 +242,17 @@ describe('MySQL', () => {
     return Promise.resolve()
       .then(() => {
         var expected = dedent`
-          ALTER TABLE \`users\` DROP CONSTRAINT "a_unique_constraint";
+          ALTER TABLE \`users\` DROP INDEX \`a_unique_constraint\`;
 
-          ALTER TABLE \`users\` ADD CONSTRAINT "a_unique_constraint" UNIQUE ("api_key");
+          ALTER TABLE \`users\` ADD CONSTRAINT \`a_unique_constraint\` UNIQUE (\`api_key\`);
         `
         return utils.runAndCompare(commands1, commands2, expected, ['warn', 'drop'])
       })
       .then(() => {
         var expected = dedent`
-          ALTER TABLE \`users\` DROP CONSTRAINT "a_unique_constraint";
+          ALTER TABLE \`users\` DROP INDEX \`a_unique_constraint\`;
 
-          -- ALTER TABLE \`users\` ADD CONSTRAINT "a_unique_constraint" UNIQUE ("api_key");
+          -- ALTER TABLE \`users\` ADD CONSTRAINT \`a_unique_constraint\` UNIQUE (\`api_key\`);
         `
         return utils.runAndCompare(commands1, commands2, expected, ['safe'])
       })

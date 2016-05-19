@@ -37,7 +37,7 @@ class MySQLDialect {
       })
       .then((tables) => {
         schema.tables = tables
-        return client.find('SELECT * FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=?', [options.database])
+        return client.find('SELECT * FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=?', [client.database])
       })
       .then((constraints) => {
         constraints.forEach((constraint) => {
