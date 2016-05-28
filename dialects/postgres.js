@@ -113,7 +113,7 @@ class PostgresDialect {
             name: constraint.conname,
             schema: table.schema,
             type: types[constraint.contype],
-            columns: description.substring(i + 1, n).split(',').map((s) => s.trim())
+            columns: description.substring(i + 1, n).split(',').map((s) => this._unquote(s.trim()))
           }
           table.constraints.push(info)
           if (m > 0) {
