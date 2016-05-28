@@ -109,7 +109,7 @@ dbdiff.describeDatabase({
           "name": "email_unique",
           "schema": "public",
           "type": "unique",
-          "keys": [
+          "columns": [
             "email"
           ]
         },
@@ -117,7 +117,7 @@ dbdiff.describeDatabase({
           "name": "users_pk",
           "schema": "public",
           "type": "primary",
-          "keys": [
+          "columns": [
             "id"
           ]
         }
@@ -146,7 +146,7 @@ dbdiff.describeDatabase({
           "name": "items_fk",
           "schema": "public",
           "type": "foreign",
-          "keys": [
+          "columns": [
             "user_id"
           ],
           "referenced_table": "users",
