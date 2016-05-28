@@ -121,7 +121,7 @@ class PostgresDialect {
             i = substr.indexOf('(')
             n = substr.indexOf(')')
             info.referenced_table = substr.substring(0, i).trim()
-            info.referenced_columns = substr.substring(i + 1, n).split(',').map((s) => s.trim())
+            info.referenced_columns = substr.substring(i + 1, n).split(',').map((s) => this._unquote(s.trim()))
           }
         })
         return client.find('SELECT * FROM information_schema.sequences')
