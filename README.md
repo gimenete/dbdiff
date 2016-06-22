@@ -126,13 +126,13 @@ dbdiff.describeDatabase({
         {
           "name": "id",
           "nullable": false,
-          "defaultValue": "nextval('users_id_seq'::regclass)",
+          "default_value": "nextval('users_id_seq'::regclass)",
           "type": "integer"
         },
         {
           "name": "email",
           "nullable": true,
-          "defaultValue": null,
+          "default_value": null,
           "type": "character varying(255)"
         }
       ]
@@ -159,19 +159,19 @@ dbdiff.describeDatabase({
         {
           "name": "id",
           "nullable": false,
-          "defaultValue": "nextval('items_id_seq'::regclass)",
+          "default_value": "nextval('items_id_seq'::regclass)",
           "type": "integer"
         },
         {
           "name": "name",
           "nullable": true,
-          "defaultValue": null,
+          "default_value": null,
           "type": "character varying(255)"
         },
         {
           "name": "user_id",
           "nullable": true,
-          "defaultValue": null,
+          "default_value": null,
           "type": "bigint"
         }
       ]

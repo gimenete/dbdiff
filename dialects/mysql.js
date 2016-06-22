@@ -27,7 +27,7 @@ class MySQLDialect {
               t.columns = columns.map((column) => ({
                 name: column.Field,
                 nullable: column.Null === 'YES',
-                defaultValue: column.Default,
+                default_value: column.Default,
                 type: column.Type,
                 extra: column.Extra
               }))

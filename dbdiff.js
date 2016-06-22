@@ -52,7 +52,7 @@ class DbDiff {
       var col2 = table2.columns.find((column) => column.name === columnName)
 
       if (this._dialect === 'mysql' && !_.isEqual(col1, col2)) {
-        var func = (col1.type !== col2.type || (col1.nullable !== col2.nullable && !col2.nullable)) ? this._warn : this._safe
+        var func = (col1.type !== col2.type || (col1.nullable !== col2.nullable && !col2.nullable)) ? this._warn : this._safe
         var extra = col2.extra ? ' ' + col2.extra : ''
         var comment = col1.type !== col2.type ? `-- Previous data type was ${col1.type}\n` : ''
         func.bind(this)(`${comment}ALTER TABLE ${tableName} MODIFY ${this._quote(columnName)} ${this._columnDescription(col2)}${extra};`)
@@ -260,8 +260,8 @@ class DbDiff {
 
   _columnDescription (col) {
     var desc = col.type
-    if (col.defaultValue) {
-      desc += ' DEFAULT ' + col.defaultValue
+    if (col.default_value) {
+      desc += ' DEFAULT ' + col.default_value
     }
     desc += col.nullable ? ' NULL' : ' NOT NULL'
     return desc

@@ -40,7 +40,7 @@ class PostgresDialect {
             t.columns = columns.map((column) => ({
               name: column.column_name,
               nullable: column.is_nullable === 'YES',
-              defaultValue: column.column_default,
+              default_value: column.column_default,
               type: dataType(column)
             }))
             return t
