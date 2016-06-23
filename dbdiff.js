@@ -191,6 +191,12 @@ class DbDiff {
   }
 
   compareSchemas (db1, db2) {
+    this.sql = []
+    this._dialect = db1.dialect
+    this._quotation = {
+      mysql: '`',
+      postgres: '"'
+    }[this._dialect]
     this._compareSequences(db1, db2)
 
     db1.tables.forEach((table) => {
@@ -233,7 +239,6 @@ class DbDiff {
   }
 
   compare (conn1, conn2) {
-    this.sql = []
     return Promise.all([
       dialects.describeDatabase(conn1),
       dialects.describeDatabase(conn2)
@@ -241,11 +246,6 @@ class DbDiff {
     .then((results) => {
       var db1 = results[0]
       var db2 = results[1]
-      this._dialect = db1.dialect
-      this._quotation = {
-        mysql: '`',
-        postgres: '"'
-      }[this._dialect]
       this.compareSchemas(db1, db2)
     })
   }
@@ -260,7 +260,7 @@ class DbDiff {
 
   _columnDescription (col) {
     var desc = col.type
-    if (col.default_value) {
+    if (col.default_value != null) {
       desc += ' DEFAULT ' + col.default_value
     }
     desc += col.nullable ? ' NULL' : ' NOT NULL'
