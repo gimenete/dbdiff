@@ -80,7 +80,8 @@ class PostgresDialect {
       })
       .then((indexes) => {
         indexes.forEach((index) => {
-          var table = schema.tables.find((table) => table.name === index.indrelid && table.schema === index.nspname)
+          var tableName = index.indrelid.split('.').pop()
+          var table = schema.tables.find((table) => table.name === tableName && table.schema === index.nspname)
           table.indexes.push({
             name: index.indname,
             schema: table.schema,
