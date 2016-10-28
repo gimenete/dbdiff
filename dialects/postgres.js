@@ -103,7 +103,7 @@ class PostgresDialect {
           p: 'primary'
         }
         constraints.forEach((constraint) => {
-          var tableFrom = this._unquote(constraint.table_from)
+          var tableFrom = this._unquote(constraint.table_from).split('.').pop()
           var table = schema.tables.find((table) => table.name === tableFrom && table.schema === constraint.nspname)
           var { description } = constraint
           var i = description.indexOf('(')
