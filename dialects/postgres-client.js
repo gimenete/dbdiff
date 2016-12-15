@@ -16,7 +16,8 @@ class PostgresClient {
       })
       var query = querystring.stringify(dialectOptions)
       if (query.length > 0) query = '?' + query
-      conString = `postgres://${options.username}:${options.password}@${options.host}:${options.port || 5432}/${options.database}${query}`
+      if (options.username) auth = `${[options.username, options.password].join(':')}@`
+      conString = `postgres://${auth}${options.host}:${options.port || 5432}/${options.database}${query}`
     }
     this.conString = conString
   }
