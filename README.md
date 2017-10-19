@@ -23,7 +23,7 @@ dbdiff \
   dialect://user:pass@host[:port]/dbname2
 ```
 
-Where `dialect` can be either `postgres` or `mysql`.
+Where `dialect` can be either `postgres` or `mysql`. The first database url denotes the target, the second the source, the sql queries will allow target to be updated to source state.
 
 The flag `-l` or `--level` indicates the safety of the SQL. Allowed values are `safe`, `warn` and `drop`
 
@@ -37,7 +37,7 @@ Some statements may fail or may produce data loss depending on the data stored i
 
 Dropping a sequence or dropping an index is considered safe.
 
-## Changing the data type of existing columns
+## Changing the data type of existing columns
 
 Sometimes Postgresql won't be able to change the existing data to the new data type. In that case you will get an error similar to this:
 
