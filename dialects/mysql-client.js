@@ -10,12 +10,21 @@ class MysqlClient {
       var info = url.parse(options)
       var auth = info.auth && info.auth.split(':')
       var more = info.query && querystring.parse(info.query)
+      // get port from url parser, input options, or default to 3306
+      var port = ''
+      if (info.port) {
+        port = info.port
+      }
+      if(!port) {
+        port = options.port ? options.port : '3306'
+      }
       options = Object.assign({
         dialect: 'mysql',
         username: auth[0],
         password: auth[1],
         database: (info.pathname || '/').substring(1),
-        host: info.host
+        host: info.hostname, // host is 'localhost:port' hostname is just 'localhost'
+        port: port
       }, more)
     }
     this.options = Object.assign({
@@ -24,7 +33,7 @@ class MysqlClient {
     }, options)
     this.database = options.database
 
-    var key = `${options.username}:${options.password}@${options.host}/${options.database}`
+    var key = `${options.username}:${options.password}@${options.host}:${port}/${options.database}`
     var conn = connections[key]
     if (!conn) {
       conn = connections[key] = mysql.createConnection(this.options)
