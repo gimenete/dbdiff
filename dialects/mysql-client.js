@@ -11,13 +11,7 @@ class MysqlClient {
       var auth = info.auth && info.auth.split(':')
       var more = info.query && querystring.parse(info.query)
       // get port from url parser, input options, or default to 3306
-      var port = ''
-      if (info.port) {
-        port = info.port
-      }
-      if(!port) {
-        port = options.port ? options.port : '3306'
-      }
+      var port = info.port ? info.port : options.port ? options.port : '3306'
       options = Object.assign({
         dialect: 'mysql',
         username: auth[0],
