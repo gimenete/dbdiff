@@ -30,3 +30,5 @@ node_modules
 
 # npm lock
 package-lock.json
+
+logfile
