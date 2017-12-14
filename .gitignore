@@ -28,4 +28,7 @@ node_modules
 
 .nyc_output
 
+# npm lock
+package-lock.json
+
 logfile
