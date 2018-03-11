@@ -1,4 +1,4 @@
-var _ = require('underscore')
+var _ = require('lodash')
 var util = require('util')
 var dialects = require('./dialects')
 var dedent = require('dedent')
@@ -163,8 +163,8 @@ class DbDiff {
   _compareConstraints (table1, table2) {
     var tableName = this._fullName(table2)
 
-    const toCreate = _.differenceWith(table2.constraints, table1.constraints, _.isEqual);
-    const toDrop = _.differenceWith(table1.constraints, table2.constraints, _.isEqual);
+    const toCreate = _.differenceWith(table2.constraints, table1.constraints, _.isEqual)
+    const toDrop = _.differenceWith(table1.constraints, table2.constraints, _.isEqual)
 
     toDrop.forEach(constraint2 => {
       if (this._dialect === 'postgres') {
@@ -172,7 +172,7 @@ class DbDiff {
       } else {
         this._safe(`ALTER TABLE ${tableName} DROP INDEX ${this._quote(constraint2.name)};`)
       }
-    });
+    })
 
     toCreate.forEach((constraint2) => {
       var keys = constraint2.columns.map((s) => `${this._quote(s)}`).join(', ')
