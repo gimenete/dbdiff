@@ -1,4 +1,4 @@
-var _ = require('underscore')
+var _ = require('lodash')
 var util = require('util')
 var dialects = require('./dialects')
 var dedent = require('dedent')
@@ -162,30 +162,30 @@ class DbDiff {
 
   _compareConstraints (table1, table2) {
     var tableName = this._fullName(table2)
-    table2.constraints.forEach((constraint2) => {
-      var constraint1 = table1 && table1.constraints.find((cons) => constraint2.name === cons.name)
-      if (constraint1) {
-        if (_.isEqual(constraint1, constraint2)) return
-        if (this._dialect === 'postgres') {
-          this._safe(`ALTER TABLE ${tableName} DROP CONSTRAINT ${this._quote(constraint2.name)};`)
-        } else {
-          this._safe(`ALTER TABLE ${tableName} DROP INDEX ${this._quote(constraint2.name)};`)
-        }
-        constraint1 = null
+
+    const toCreate = _.differenceWith(table2.constraints, table1.constraints, _.isEqual)
+    const toDrop = _.differenceWith(table1.constraints, table2.constraints, _.isEqual)
+
+    toDrop.forEach(constraint2 => {
+      if (this._dialect === 'postgres') {
+        this._safe(`ALTER TABLE ${tableName} DROP CONSTRAINT ${this._quote(constraint2.name)};`)
+      } else {
+        this._safe(`ALTER TABLE ${tableName} DROP INDEX ${this._quote(constraint2.name)};`)
       }
-      if (!constraint1) {
-        var keys = constraint2.columns.map((s) => `${this._quote(s)}`).join(', ')
-        var func = (table1 ? this._warn : this._safe).bind(this)
-        var fullName = this._quote(constraint2.name)
-        if (constraint2.type === 'primary') {
-          if (this._dialect === 'mysql') fullName = 'foo'
-          func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} PRIMARY KEY (${keys});`)
-        } else if (constraint2.type === 'unique') {
-          func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} UNIQUE (${keys});`)
-        } else if (constraint2.type === 'foreign') {
-          var foreignKeys = constraint2.referenced_columns.map((s) => `${this._quote(s)}`).join(', ')
-          func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} FOREIGN KEY (${keys}) REFERENCES ${this._quote(constraint2.referenced_table)} (${foreignKeys});`)
-        }
+    })
+
+    toCreate.forEach((constraint2) => {
+      var keys = constraint2.columns.map((s) => `${this._quote(s)}`).join(', ')
+      var func = (table1 ? this._warn : this._safe).bind(this)
+      var fullName = this._quote(constraint2.name)
+      if (constraint2.type === 'primary') {
+        if (this._dialect === 'mysql') fullName = 'foo'
+        func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} PRIMARY KEY (${keys});`)
+      } else if (constraint2.type === 'unique') {
+        func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} UNIQUE (${keys});`)
+      } else if (constraint2.type === 'foreign') {
+        var foreignKeys = constraint2.referenced_columns.map((s) => `${this._quote(s)}`).join(', ')
+        func(`ALTER TABLE ${tableName} ADD CONSTRAINT ${fullName} FOREIGN KEY (${keys}) REFERENCES ${this._quote(constraint2.referenced_table)} (${foreignKeys});`)
       }
     })
   }

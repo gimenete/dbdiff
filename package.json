@@ -17,6 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "dedent": "^0.6.0",
+    "lodash": "^4.17.5",
     "mysql": "^2.10.2",
     "pg": "^6.0.0",
     "pync": "^1.0.1",
