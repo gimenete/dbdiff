@@ -6,7 +6,9 @@ class MySQLDialect {
   _quote (str) {
     return '`' + str + '`'
   }
-
+  _singleQuote (str) {
+    return !str ? str : '\'' + str + '\'';
+  }
   describeDatabase (options) {
     var schema = { dialect: 'mysql', sequences: [] }
     var client = new MysqlClient(options)
@@ -27,7 +29,7 @@ class MySQLDialect {
               t.columns = columns.map((column) => ({
                 name: column.Field,
                 nullable: column.Null === 'YES',
-                default_value: column.Default,
+                default_value: this._singleQuote(column.Default),
                 type: column.Type,
                 extra: column.Extra
               }))
