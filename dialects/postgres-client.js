@@ -6,10 +6,7 @@ class PostgresClient {
   }
 
   buildPool() {
-    this.pool = new Pool({
-      ...this.connconnOptions,
-      ssl: { rejectUnauthorized: false },
-    });
+    this.pool = new Pool(this.connconnOptions);
     return this.pool;
   }
 
@@ -21,11 +18,11 @@ class PostgresClient {
     if (!this.pool) {
       this.buildPool();
       const pgClient = await this.pool.connect();
-      debugger;
+      
       return pgClient;
     }
     const pgClient = await this.pool.connect();
-    debugger;
+    
     return pgClient;
   }
 
