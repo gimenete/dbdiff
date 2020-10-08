@@ -1,5 +1,5 @@
 {
-  "name": "dbdiff",
+  "name": "dbdiff-pg-upgraded",
   "version": "0.5.3",
   "description": "Compares two databases and prints SQL commands to modify the first one in order to match the second one",
   "main": "index.js",
@@ -16,11 +16,11 @@
   "author": "Alberto Gimeno",
   "license": "MIT",
   "dependencies": {
-    "dedent": "^0.6.0",
+    "dedent": "^0.7.0",
     "mysql": "^2.10.2",
-    "pg": "^6.0.0",
-    "pync": "^1.0.1",
-    "underscore": "^1.8.3",
+    "pg": "^8.4.0",
+    "pync": "^1.0.3",
+    "underscore": "^1.11.0",
     "yargs": "^3.29.0"
   },
   "devDependencies": {

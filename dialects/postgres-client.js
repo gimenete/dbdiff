@@ -1,46 +1,48 @@
-var pg = require('pg')
-var querystring = require('querystring')
-
+const { Pool } = require("pg");
+const DROP_SCHEMA_QUERY = "drop schema public cascade; create schema public;";
 class PostgresClient {
-  constructor (conOptions) {
-    this.conOptions = conOptions
+  constructor(connOptions) {
+    this.connconnOptions = connOptions;
   }
 
-  dropTables () {
-    return this.query('drop schema public cascade; create schema public;')
+  buildPool() {
+    this.pool = new Pool({
+      ...this.connconnOptions,
+      ssl: { rejectUnauthorized: false },
+    });
+    return this.pool;
   }
 
-  connect () {
-    return new Promise((resolve, reject) => {
-      if (this.client) return resolve()
-      pg.connect(this.conOptions, (err, client, done) => {
-        if (err) return reject(err)
-        this.client = client
-        this.done = done
-        resolve()
-      })
-    })
+  dropTables() {
+    return this.query(DROP_SCHEMA_QUERY);
   }
 
-  query (sql, params = []) {
-    return this.connect()
-      .then(() => {
-        return new Promise((resolve, reject) => {
-          this.client.query(sql, params, (err, result) => {
-            this.done()
-            err ? reject(err) : resolve(result)
-          })
-        })
-      })
+  async connect() {
+    if (!this.pool) {
+      this.buildPool();
+      const pgClient = await this.pool.connect();
+      debugger;
+      return pgClient;
+    }
+    const pgClient = await this.pool.connect();
+    debugger;
+    return pgClient;
   }
 
-  find (sql, params = []) {
-    return this.query(sql, params).then((result) => result.rows)
+  async query(sql, params = []) {
+    const pgClient = await this.connect();
+    const resultSet = await pgClient.query(sql, params);
+    const shouldDestroy = true;
+    pgClient.release(shouldDestroy);
+    return resultSet;
   }
 
-  findOne (sql, params = []) {
-    return this.query(sql, params).then((result) => result.rows[0])
+  find(sql, params) {
+    return this.query(sql, params).then((result) => result.rows);
+  }
+  findOne(sql, params) {
+    return this.query(sql, params).then((result) => result.rows[0]);
   }
 }
 
-module.exports = PostgresClient
+module.exports = PostgresClient;
