@@ -1,4 +1,4 @@
-# dbdiff
+# dbdiff-pg-upgraded
 
 Compares two databases and prints SQL commands to modify the first one in order to match the second one.
 
@@ -11,16 +11,16 @@ It supports PostgreSQL and MySQL.
 Install globally with `npm`
 
 ```
-npm install dbdiff -g
+npm install dbdiff-pg-upgraded -g
 ```
 
 # CLI Usage
 
 ```
-dbdiff \
+dbdiff-pg-upgraded \
   -l safe
-  dialect://user:pass@host[:port]/dbname1 \
-  dialect://user:pass@host[:port]/dbname2
+  dbdiff-pg-upgraded://user:pass@host[:port]/dbname1 \
+  dbdiff-pg-upgraded://user:pass@host[:port]/dbname2
 ```
 
 Where `dialect` can be either `postgres` or `mysql`. The first database url denotes the target, the second the source, the sql queries will allow target to be updated to source state.
@@ -55,10 +55,10 @@ ALTER TABLE table_name
 
 # Usage as a library
 
-You can use `dbdiff` as a library:
+You can use `dbdiff-pg-upgraded` as a library:
 
 ```javascript
-var dbdiff = require('dbdiff')
+var dbdiff = require('dbdiff-pg-upgraded')
 
 dbdiff.describeDatabase(connString)
   .then((schema) => {
